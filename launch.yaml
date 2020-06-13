@@ -1,0 +1,34 @@
+session_name: chicken-monitoring
+environment:
+  TEST_NAME: test
+  # THROTTLE_HZ:
+windows:
+  - window_name: chicken-monitoring
+    layout: tiled
+    shell_command_before: 
+      - export DATA_DIR=/home/ed/Data/$(date "+%Y-%m-%d-%H-%M-00")_${TEST_NAME}
+    panes:
+      - roscore
+      - shell_command:
+        - sleep 5
+        - roslaunch gscam v4l.launch # thermal
+      - shell_command:
+        - sleep 5
+        - roslaunch jetson_csi_cam jetson_csi_cam.launch # rgb
+      - shell_command:
+        - sleep 5
+        - rosrun topic_tools throttle messages color/camera/image_raw/compressed 5 #${THROTTLE_HZ}
+      - shell_command:
+        - sleep 5
+        - rosrun topic_tools throttle messages thermal/camera/image_raw/compressed 5 #${THROTTLE_HZ}
+      - shell_command:
+        - sleep 5
+        - rosrun topic_tools relay color/camera/image_raw/compressed_throttle color/camera/image_raw_throttle/compressed
+      - shell_command:
+        - sleep 5
+        - rosrun topic_tools relay thermal/camera/image_raw/compressed_throttle thermal/camera/image_raw_throttle/compressed
+      - shell_command:
+        - mkdir -p $DATA_DIR
+        - cd $DATA_DIR
+        - sleep 5
+        - rosbag record --split --size=512 color/camera/image_raw_throttle/compressed thermal/camera/image_raw_throttle/compressed
