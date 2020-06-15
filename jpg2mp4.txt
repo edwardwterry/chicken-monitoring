@@ -1,0 +1,2 @@
+ffmpeg -framerate 5 -i c%04d.jpg -c:v libx264 -profile:v high -crf 20 -pix_fmt yuv420p bread_c.mp4
+ffmpeg -r 5 -i t%04d.jpg bread_t.mp4

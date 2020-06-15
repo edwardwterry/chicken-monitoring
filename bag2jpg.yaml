@@ -1,0 +1,20 @@
+session_name: bag2jpg
+environment:
+  BAGFILE_PATH: /home/ed/Data/2020-06-13-14-00-00_test/bread
+windows:
+  - window_name: bag2jpg
+    layout: tiled
+    shell_command_before: 
+      - cd ${BAGFILE_PATH}
+    panes:
+      - roscore
+      - shell_command:
+        - sleep 6
+        - rosbag play *.bag -r 10
+      - shell_command:
+        - sleep 3
+        - roslaunch chicken_monitoring bag2jpg.launch
+      - shell_command:
+        - sleep 3
+        - roslaunch chicken_monitoring decompress.launch
+

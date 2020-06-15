@@ -1,0 +1,4 @@
+<launch>
+  <node pkg="image_transport" type="republish" name="uncompress_color" args="compressed in:=color/camera/image_raw_throttle raw out:=color/camera/image_raw_throttle"/>
+  <node pkg="image_transport" type="republish" name="uncompress_thermal" args="compressed in:=thermal/camera/image_raw_throttle raw out:=thermal/camera/image_raw_throttle"/>
+</launch>
