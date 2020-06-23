@@ -1,0 +1,25 @@
+session_name: chicken-monitoring
+environment:
+  BAGFILE_PATH: /home/ed/Data/2020-06-13-14-00-00_test/feeding
+windows:
+  - window_name: chicken-monitoring
+    layout: tiled
+    shell_command_before: 
+      - cd ${BAGFILE_PATH}
+    panes:
+            #- roscore
+      - shell_command:
+        - sleep 6
+        - rosbag play *.bag
+      - shell_command:
+        - sleep 3
+        - roslaunch chicken_monitoring eda.launch
+          #- shell_command:
+          #- sleep 3
+          #- roslaunch chicken_monitoring decompress.launch
+      - shell_command:
+        - sleep 3
+        - roslaunch chicken_monitoring rqt.launch
+          #- clear
+          #- clear
+

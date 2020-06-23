@@ -1,0 +1,3 @@
+<launch>
+  <node pkg="chicken_monitoring" type="eda.py" name="eda" output="screen"/>
+</launch>
