@@ -1,7 +1,7 @@
 session_name: chicken-monitoring
 environment:
   TEST_NAME: test
-  # THROTTLE_HZ:
+  THROTTLE_HZ: '30'
 windows:
   - window_name: chicken-monitoring
     layout: tiled
@@ -17,10 +17,10 @@ windows:
         - roslaunch jetson_csi_cam jetson_csi_cam.launch # rgb
       - shell_command:
         - sleep 5
-        - rosrun topic_tools throttle messages color/camera/image_raw/compressed 5 #${THROTTLE_HZ}
+        - rosrun topic_tools throttle messages color/camera/image_raw/compressed ${THROTTLE_HZ}
       - shell_command:
         - sleep 5
-        - rosrun topic_tools throttle messages thermal/camera/image_raw/compressed 5 #${THROTTLE_HZ}
+        - rosrun topic_tools throttle messages thermal/camera/image_raw/compressed ${THROTTLE_HZ}
       - shell_command:
         - sleep 5
         - rosrun topic_tools relay color/camera/image_raw/compressed_throttle color/camera/image_raw_throttle/compressed
