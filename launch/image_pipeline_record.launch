@@ -1,0 +1,10 @@
+<launch>
+  <arg name="throttle_hz" default="30"/>
+  <node pkg="image_transport" type="republish" name="uncompress_color" args="compressed in:=color/camera/image_raw_throttle raw out:=color/camera/image_raw_throttle"/>
+  <node pkg="image_transport" type="republish" name="uncompress_thermal" args="compressed in:=thermal/camera/image_raw_throttle raw out:=thermal/camera/image_raw_throttle"/>
+  <node name="rectify_color" pkg="image_proc" type="image_proc" ns="color/camera"/>
+  <node name="throttle_color" pkg="topic_tools" type="throttle" args="messages color/camera/image_rect_color/compressed $(arg throttle_hz)"/>
+  <node name="throttle_thermal" pkg="topic_tools" type="throttle" args="messages thermal/camera/image_raw/compressed $(arg throttle_hz)"/>
+  <node name="remap_color" pkg="topic_tools" type="relay" args="color/camera/image_rect_color/compressed_throttle color/camera/image_rect_color_throttle/compressed"/>
+  <node name="remap_thermal" pkg="topic_tools" type="relay" args="thermal/camera/image_raw/compressed_throttle thermal/camera/image_raw_throttle/compressed"/>
+</launch>

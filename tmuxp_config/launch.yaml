@@ -1,7 +1,6 @@
 session_name: chicken-monitoring
 environment:
   TEST_NAME: test
-  THROTTLE_HZ: '30'
 windows:
   - window_name: chicken-monitoring
     layout: tiled
@@ -17,18 +16,11 @@ windows:
         - roslaunch jetson_csi_cam jetson_csi_cam.launch # rgb
       - shell_command:
         - sleep 5
-        - rosrun topic_tools throttle messages color/camera/image_raw/compressed ${THROTTLE_HZ}
-      - shell_command:
-        - sleep 5
-        - rosrun topic_tools throttle messages thermal/camera/image_raw/compressed ${THROTTLE_HZ}
-      - shell_command:
-        - sleep 5
-        - rosrun topic_tools relay color/camera/image_raw/compressed_throttle color/camera/image_raw_throttle/compressed
-      - shell_command:
-        - sleep 5
-        - rosrun topic_tools relay thermal/camera/image_raw/compressed_throttle thermal/camera/image_raw_throttle/compressed
+        - roslaunch chicken_monitoring image_pipeline_record.launch
       - shell_command:
         - mkdir -p $DATA_DIR
         - cd $DATA_DIR
         - sleep 5
-        - rosbag record --split --size=512 color/camera/image_raw_throttle/compressed thermal/camera/image_raw_throttle/compressed
+        - rosbag record --split --size=512 color/camera/image_rect_color_throttle/compressed thermal/camera/image_raw_throttle/compressed
+      - clear
+      - clear

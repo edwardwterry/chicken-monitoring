@@ -45,7 +45,7 @@
                 },
                 "mouse_pub_topic": {
                   "type": "repr",
-                  "repr": "u'/color/camera/image_raw_throttle/compressed_mouse_left'"
+                  "repr": "u'/color/camera/image_rect_color_throttle/compressed_mouse_left'"
                 },
                 "num_gridlines": {
                   "type": "repr",
@@ -65,7 +65,7 @@
                 },
                 "topic": {
                   "type": "repr",
-                  "repr": "u'/color/camera/image_raw_throttle/compressed'"
+                  "repr": "u'/color/camera/image_rect_color_throttle/compressed'"
                 },
                 "publish_click_location": {
                   "type": "repr",
