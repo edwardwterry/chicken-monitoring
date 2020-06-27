@@ -1,6 +1,7 @@
 <launch>
-  <node pkg="image_transport" type="republish" name="uncompress_color" args="compressed in:=color/camera/image_raw_throttle raw out:=color/camera/image_raw_throttle"/>
+  <arg name="rect" default="true"/>
+  <arg name="color_topic" value="image_raw" unless="$(arg rect)"/>
+  <arg name="color_topic" value="image_rect_color" if="$(arg rect)"/>
+  <node pkg="image_transport" type="republish" name="uncompress_color" args="compressed in:=color/camera/$(arg color_topic)_throttle raw out:=color/camera/$(arg color_topic)_throttle"/>
   <node pkg="image_transport" type="republish" name="uncompress_thermal" args="compressed in:=thermal/camera/image_raw_throttle raw out:=thermal/camera/image_raw_throttle"/>
-  <node name="image_proc" pkg="image_proc" type="image_proc" ns="color/camera"/>
-  <node name="image_proc" pkg="image_proc" type="image_proc" ns="thermal/camera"/>
 </launch>

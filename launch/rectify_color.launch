@@ -1,0 +1,5 @@
+<launch>
+  <node name="rectify_color" pkg="image_proc" type="image_proc" ns="color/camera">
+    <remap from="image_raw" to="image_raw_throttle"/>
+  </node>
+</launch>

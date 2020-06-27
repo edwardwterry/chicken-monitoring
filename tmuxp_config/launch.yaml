@@ -21,6 +21,6 @@ windows:
         - mkdir -p $DATA_DIR
         - cd $DATA_DIR
         - sleep 5
-        - rosbag record --split --size=512 color/camera/image_rect_color_throttle/compressed thermal/camera/image_raw_throttle/compressed
+        - rosbag record --split --size=512 color/camera/image_rect_color_throttle/compressed thermal/camera/image_raw_throttle/compressed color/camera/camera_info thermal/camera/camera_info
       - clear
       - clear

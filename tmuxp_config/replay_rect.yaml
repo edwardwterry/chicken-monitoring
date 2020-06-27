@@ -1,6 +1,6 @@
 session_name: chicken-monitoring
 environment:
-  BAGFILE_PATH: /home/ed/Data/2020-06-23-15-11-00_test
+  BAGFILE_PATH: /home/ed/Data/2020-06-26-18-15-00_test
 windows:
   - window_name: chicken-monitoring
     layout: tiled
@@ -13,4 +13,8 @@ windows:
         - rosbag play *.bag
       - shell_command:
         - sleep 5
-        - roslaunch chicken_monitoring rqt.launch perspective:=therm_color
+        - roslaunch chicken_monitoring decompress.launch rect:=true
+      - shell_command:
+        - sleep 5
+        - roslaunch chicken_monitoring rqt.launch perspective:=therm_color_rect
+      - clear
