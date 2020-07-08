@@ -13,6 +13,8 @@ windows:
         - rosbag play *.bag
       - shell_command:
         - sleep 5
+        - roscd jetson_csi_cam/src
+        - chmod +x publish_camera_info.py
         - roslaunch jetson_csi_cam publish_camera_info.launch
       - shell_command:
         - sleep 5
