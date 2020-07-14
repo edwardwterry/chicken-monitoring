@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 import cv2
 import numpy as np
 import pandas as pd
@@ -25,15 +25,10 @@ shapes = []
 tts = []
 im_paths = []
 
-count = 0
 # Calculate bounding boxes in darknet format
 with open(parent_dir + 'images.txt', 'r') as images, \
      open(parent_dir + 'bounding_boxes.txt', 'r') as boxes:
     for image, box in zip(images.readlines(), boxes.readlines()): 
-        if count > 120: 
-            break
-        count += 1
-
         # Path
         im_path = image.split(' ')[1].split('\n')[0]
         im_paths.append(im_path)
@@ -56,7 +51,6 @@ with open(parent_dir + 'images.txt', 'r') as images, \
         darknet = [round(x, 3) for x in darknet]
         darknet_boxes.append(darknet)
 
-countx = 0
 # Class labels
 with open(parent_dir + 'image_class_labels.txt', 'r') as image_class_labels:
     count = 0
@@ -65,9 +59,6 @@ with open(parent_dir + 'image_class_labels.txt', 'r') as image_class_labels:
     prev = data_labels[0].split(' ')[1].split('\n')[0]
     includes = []
     for row in data_labels:
-        if countx > 120: 
-            break
-        countx += 1
         curr = row.split(' ')[1].split('\n')[0]
         if curr != prev:
             count = 0 # assumes ascending labels
@@ -80,13 +71,9 @@ with open(parent_dir + 'image_class_labels.txt', 'r') as image_class_labels:
         labels.append(curr)
         includes.append(include)
 
-count = 0
 # Test/train split
 with open(parent_dir + 'train_test_split.txt', 'r') as tt:
-    for row in tt.readlines():
-        if count > 120: 
-            break
-        count += 1            
+    for row in tt.readlines():           
         tts.append(row.split(' ')[1].split('\n')[0])
 
 # Assemble the DataFrame
@@ -97,8 +84,6 @@ df['label'] = pd.Series(labels)
 df['tt'] = pd.Series(tts)
 df['include'] = pd.Series(includes)
 
-print (df)
-
 manif = {'train': [], 'test': []}
 
 # Copy images into train/test directory
@@ -108,7 +93,7 @@ for index, row in df.iterrows():
         f = row['im_path']
         src = parent_dir + 'images/' + f
         f = f.split('/')[1]
-        if row['tt'] == 1:
+        if row['tt'] == '1':
             suffix = 'train/'
         else:
             suffix = 'test/'
