@@ -1,6 +1,6 @@
 session_name: chicken-monitoring
 environment:
-  BAGFILE_PATH: /home/ed/Data/2020-06-26-18-15-00_test
+  BAGFILE_PATH: /home/ed/Data/2020-07-02-09-27-00_test
 windows:
   - window_name: chicken-monitoring
     layout: tiled
