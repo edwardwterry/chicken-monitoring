@@ -6,7 +6,7 @@ from shutil import copyfile
 
 pd.set_option('display.max_rows', None)
 
-parent_dir = '/home/ed/Data/CUB_200_2011/CUB_200_2011/'
+parent_dir = '/home/ed/Data/label/'
 per_class = 4
 
 def convert_to_darknet(im_width, im_height, bb_x, bb_y, bb_width, bb_height):

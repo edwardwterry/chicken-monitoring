@@ -3,18 +3,19 @@ import cv2
 import numpy as np
 import pandas as pd
 from shutil import copyfile
+import os
 
 pd.set_option('display.max_rows', None)
 
-parent_dir = '/home/ed/Data/CUB_200_2011/CUB_200_2011/'
+parent_dir = '/home/ed/Data/label/'
 per_class = 4
 
-def convert_to_darknet(im_width, im_height, bb_x, bb_y, bb_width, bb_height):
-    x_darknet = (bb_x + 0.5 * bb_width) / im_width
-    y_darknet = (bb_y + 0.5 * bb_height) / im_height
-    width_darknet = float(bb_width) / float(im_width)
-    height_darknet = float(bb_height) / float(im_height)
-    return (x_darknet, y_darknet, width_darknet, height_darknet)
+image_types = ['color', 'thermal']
+
+# find all instances of output.manifest
+
+
+def label_job_name_to_seq(label_job_name):
 
 # Prepare DataFrame elements
 df = pd.DataFrame()
