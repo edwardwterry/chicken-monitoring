@@ -87,7 +87,7 @@ def color2therm(color_fract):
     tl_color_pix = fract2pix((x0, y0), 'color')
     br_color_pix = fract2pix((x1, y1), 'color')
     tl_color_pix = [tl_color_pix[0], tl_color_pix[1], 1.0] # convert to homogeneous form
-    br_color_pix = [tl_color_pix[0], tl_color_pix[1], 1.0]
+    br_color_pix = [br_color_pix[0], br_color_pix[1], 1.0]
     tl_therm_pix = np.dot(T_therm_color, np.array(tl_color_pix))
     br_therm_pix = np.dot(T_therm_color, np.array(br_color_pix))
     tl_therm_fract = pix2fract((tl_therm_pix[0], tl_therm_pix[1]), 'thermal')
@@ -96,7 +96,6 @@ def color2therm(color_fract):
 
 # center and width/height to top left, bottom right
 def xywh2tlbr(pt):
-    print (pt)
     x = pt[0]
     y = pt[1]
     w = pt[2]
@@ -110,6 +109,13 @@ def tlbr2xywh(pt):
     x1 = pt[2]
     y1 = pt[3]
     return (0.5 * (x0 + x1), 0.5 * (y0 + y1), x1 - x0, y1 - y0)
+
+def clip(pt):
+    if pt < 0.0:
+        pt = 0.0
+    elif pt > 1.0:
+        pt = 1.0
+    return pt
 
 # Segment all image files by sequence, then by image type
 # https://www.tutorialspoint.com/python/os_walk.htm
@@ -132,6 +138,7 @@ for seq, files in image_files.items():
     thermal_label_files = []
     times['color'] = []
     times['thermal'] = []
+    # "create" the corresponding .txt file for the given .jpg
     for f in files['color']:
         filename = os.path.join(host_data_dir + labels_dir + 'color/' + seq, f + '.txt')
         label_files[seq]['color'].append(filename)
@@ -150,18 +157,24 @@ for seq in label_files.keys():
     for c, t in itertools.zip_longest(label_files[seq]['color'], label_files[seq]['thermal']):
         if c is not None and t is not None:
             with open(c, 'r') as f_color, open(t, 'w') as f_therm:
+                print('newfile')
                 packed = ''
                 for row in f_color:
+                    # print ('color' + row)
                     packed += class_id + ' '
                     class_id = row.split(' ')[0]
                     bb_color_fract = [float(x) for x in row.split(' ')[1:]]
-                    bb_therm_fract = []
-                    # for fract in bb_color_fract:
                     bb_color_fract_tlbr = xywh2tlbr(bb_color_fract)
+                    print ('bb_color_fract_tlbr', bb_color_fract_tlbr)
                     bb_therm_fract_tlbr = color2therm(bb_color_fract_tlbr)
+                    print ('bb_therm_fract_tlbr', bb_therm_fract_tlbr)
+                    bb_therm_fract_tlbr = tuple([clip(x) for x in bb_therm_fract_tlbr])
+                    print ('bb_therm_fract_tlbr', bb_therm_fract_tlbr)
                     bb_therm_fract_xywh = tlbr2xywh(bb_therm_fract_tlbr)
+                    print ('bb_therm_fract_xywh', bb_therm_fract_xywh)
                     packed += str(round(bb_therm_fract_xywh[0], 3)) + ' '
                     packed += str(round(bb_therm_fract_xywh[1], 3)) + ' '
                     packed += str(round(bb_therm_fract_xywh[2], 3)) + ' '
                     packed += str(round(bb_therm_fract_xywh[3], 3)) + '\n'
+                # print ('thermal' + packed)
                 # f_therm.write(packed)
