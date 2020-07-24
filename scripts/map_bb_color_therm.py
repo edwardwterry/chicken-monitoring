@@ -156,7 +156,9 @@ for seq, files in image_files.items():
 for seq in label_files.keys():
     for c, t in itertools.zip_longest(label_files[seq]['color'], label_files[seq]['thermal']):
         if c is not None and t is not None:
-            with open(c, 'r') as f_color, open(t, 'w') as f_therm:
+            try:
+                f_color = open(c, 'r')
+                f_therm = open(t, 'r')
                 print('newfile')
                 packed = ''
                 for row in f_color:
@@ -165,16 +167,18 @@ for seq in label_files.keys():
                     class_id = row.split(' ')[0]
                     bb_color_fract = [float(x) for x in row.split(' ')[1:]]
                     bb_color_fract_tlbr = xywh2tlbr(bb_color_fract)
-                    print ('bb_color_fract_tlbr', bb_color_fract_tlbr)
+                    # print ('bb_color_fract_tlbr', bb_color_fract_tlbr)
                     bb_therm_fract_tlbr = color2therm(bb_color_fract_tlbr)
-                    print ('bb_therm_fract_tlbr', bb_therm_fract_tlbr)
+                    # print ('bb_therm_fract_tlbr', bb_therm_fract_tlbr)
                     bb_therm_fract_tlbr = tuple([clip(x) for x in bb_therm_fract_tlbr])
-                    print ('bb_therm_fract_tlbr', bb_therm_fract_tlbr)
+                    # print ('bb_therm_fract_tlbr', bb_therm_fract_tlbr)
                     bb_therm_fract_xywh = tlbr2xywh(bb_therm_fract_tlbr)
-                    print ('bb_therm_fract_xywh', bb_therm_fract_xywh)
+                    # print ('bb_therm_fract_xywh', bb_therm_fract_xywh)
                     packed += str(round(bb_therm_fract_xywh[0], 3)) + ' '
                     packed += str(round(bb_therm_fract_xywh[1], 3)) + ' '
                     packed += str(round(bb_therm_fract_xywh[2], 3)) + ' '
                     packed += str(round(bb_therm_fract_xywh[3], 3)) + '\n'
+            except OSError:
+                print('cannot open')                             
                 # print ('thermal' + packed)
                 # f_therm.write(packed)
