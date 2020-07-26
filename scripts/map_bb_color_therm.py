@@ -3,6 +3,10 @@
 # This file takes in an edited color bounding box annotation file
 # and converts it to the corresponding thermal image
 
+# It looks for a .txt file corresponding to the .jpg file in the labels/color
+# subdirectory. If it exists, it will create the corresponding thermal version
+# If not, it will ignore it and move on.
+
 import numpy as np
 import yaml
 import os
@@ -21,6 +25,14 @@ T_color_therm =  np.array([[ 12.813, 0.112, 548.383],
 T_therm_color =  np.array([[ 0.078,  -0.001, -42.77 ],
  [  0.,      0.066,  -3.441],
  [ -0.,      0.,      1.]])
+
+#07/02
+T_therm_color =  np.array([[ 0.073,   0.,    -37.08 ],
+ [  0.001,   0.064,  -2.043],
+ [ -0.,      0.,      1.]])
+#   [[  0.073   0.    -37.08 ]
+#  [  0.001   0.064  -2.043]
+#  [  0.      0.      1.   ]] 
 
 dims = {'color': (1920, 1080), 'thermal': (80, 60)}
 times = {'color': [], 'thermal': []}
@@ -158,8 +170,8 @@ for seq in label_files.keys():
         if c is not None and t is not None:
             try:
                 f_color = open(c, 'r')
-                f_therm = open(t, 'r')
-                print('newfile')
+                f_therm = open(t, 'w')
+                # print('>>>>>>newfile')
                 packed = ''
                 for row in f_color:
                     # print ('color' + row)
@@ -178,7 +190,9 @@ for seq in label_files.keys():
                     packed += str(round(bb_therm_fract_xywh[1], 3)) + ' '
                     packed += str(round(bb_therm_fract_xywh[2], 3)) + ' '
                     packed += str(round(bb_therm_fract_xywh[3], 3)) + '\n'
-            except OSError:
-                print('cannot open')                             
                 # print ('thermal' + packed)
-                # f_therm.write(packed)
+                print(f_therm)
+                f_therm.write(packed)
+            except OSError:
+                pass
+                # print('cannot open')                             

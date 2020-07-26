@@ -1,0 +1,10 @@
+model_color: '/home/ed/PyTorch-YOLOv3/config/yolov3-tiny.cfg'
+model_thermal: '/home/ed/PyTorch-YOLOv3/config/yolov3-tiny-thermal.cfg'
+weights_color: '/home/ed/PyTorch-YOLOv3/weights/yolov3_ckpt_35.pth'
+weights_thermal: '/home/ed/PyTorch-YOLOv3/weights/yolov3_ckpt_55.pth'
+img_size_color: 416
+img_size_thermal: 416
+conf_thresh: 0.6
+nms_thresh: 0.4
+batch_size: 1
+n_cpu: 0
