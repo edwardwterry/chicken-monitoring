@@ -40,8 +40,8 @@ class Detection():
         self.nms_thresh = rospy.get_param('nms_thresh')
         self.batch_size = rospy.get_param('batch_size')
         self.n_cpu = rospy.get_param('n_cpu')
-        self.preprocess = transforms.Compose([transforms.Resize(416), transforms.ToTensor()])
-
+        self.preprocess = transforms.Compose([transforms.Resize((416, 416)), transforms.ToTensor()])
+        self.to_pil = transforms.ToPILImage()
         # Prepare pub/sub
         self.color_sub = rospy.Subscriber('color', RosImage, self.color_clbk)
         # thermal_sub = rospy.Subscriber('thermal', Image, thermal_clbk)
@@ -64,16 +64,19 @@ class Detection():
         im = br.imgmsg_to_cv2(msg)
         im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
         # https://stackoverflow.com/questions/43232813/convert-opencv-image-format-to-pil-image-format
-        im_pil = Image.fromarray(im)
-        im_pil = self.preprocess(im_pil)
+        im_pil = self.to_pil(im)
+        im_pil = self.preprocess(im_pil).float()
+        im_pil = im_pil.unsqueeze_(0)
         # im_pil = transforms.ToTensor()(im_pil.convert('RGB')).unsqueeze(0).cuda()
-        # im_pil = Variable(im_pil.type(Tensor))
+        input = Variable(im_pil) #.type(Tensor))
+        input = input.to(device)
         with torch.no_grad():
-            print('Running inference!')
-            detections = self.models['color'](im_pil)
-            detections = non_max_suppression(detections, conf_thres, nms_thres)
+            rospy.loginfo('Running inference!')
+            detections = self.models['color'](input)
+            # detections = non_max_suppression(detections, self.conf_thresh, self.nms_thresh)
+            # detections = detections.data.cpu()
         if detections is not None:
-            detections = rescale_boxes(detections, self.img_size['color'], im_pil.shape[:2])
+            # detections = rescale_boxes(detections, self.img_size['color'], im_pil.shape[:2])
             print(detections)
             # for x1, y1, x2, y2, conf, cls_conf, cls_pred in detections:
                 # im = self.overlay_bb(im, x1, y1, x2, y2)
