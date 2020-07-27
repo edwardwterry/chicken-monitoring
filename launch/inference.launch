@@ -1,0 +1,4 @@
+<launch>
+  <node pkg="chicken_monitoring" type="inference.py" name="inference" output="screen"/>
+  <rosparam command="load" file="$(find chicken_monitoring)/cfg/inference.yaml"/>
+</launch>
