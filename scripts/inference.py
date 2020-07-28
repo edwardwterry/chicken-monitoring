@@ -44,6 +44,7 @@ class Detection():
         self.to_pil = transforms.ToPILImage()
         # Prepare pub/sub
         self.color_sub = rospy.Subscriber('color', RosImage, self.color_clbk)
+        self.color_pub = rospy.Publisher('color_bb', RosImage, queue_size=1)
         # thermal_sub = rospy.Subscriber('thermal', Image, thermal_clbk)
 
         # Prepare models
@@ -57,13 +58,14 @@ class Detection():
             self.models[image_type].eval()
             rospy.loginfo('Model preparation complete!')
 
-    def overlay_bb(self, im, x1, y1, x2, y2):
-        return cv2.rectangle(im, (x1, y1), (x2, y2), (0, 0, 255), 3)
+    def overlay_bb(self, im, x1, y1, x2, y2, conf):
+        return cv2.rectangle(im, (x1, y1), (x2, y2), (0, 0, 255 * conf), 3)
 
     def color_clbk(self, msg):
+        rospy.loginfo("in clbk")
         im = br.imgmsg_to_cv2(msg)
         im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
-        # https://stackoverflow.com/questions/43232813/convert-opencv-image-format-to-pil-image-format
+        # # https://stackoverflow.com/questions/43232813/convert-opencv-image-format-to-pil-image-format
         im_pil = self.to_pil(im)
         im_pil = self.preprocess(im_pil).float()
         im_pil = im_pil.unsqueeze_(0)
@@ -73,13 +75,23 @@ class Detection():
         with torch.no_grad():
             rospy.loginfo('Running inference!')
             detections = self.models['color'](input)
-            # detections = non_max_suppression(detections, self.conf_thresh, self.nms_thresh)
-            # detections = detections.data.cpu()
+            detections = non_max_suppression(detections, self.conf_thresh, self.nms_thresh)
+            detections = detections[0]
         if detections is not None:
-            # detections = rescale_boxes(detections, self.img_size['color'], im_pil.shape[:2])
-            print(detections)
-            # for x1, y1, x2, y2, conf, cls_conf, cls_pred in detections:
-                # im = self.overlay_bb(im, x1, y1, x2, y2)
+            print ('before', detections, type(detections)) #, detections.size())
+            detections = rescale_boxes(detections, self.img_size['color'], im.shape[:2])
+            detections = detections.data.cpu().numpy()
+            print ('after', detections, type(detections)) #, detections.size())
+            for d in detections:
+                x1 = d[0]
+                y1 = d[1]
+                x2 = d[2]
+                y2 = d[3]
+                conf = d[4]
+                im = self.overlay_bb(im, x1, y1, x2, y2, conf)
+        out_msg = br.cv2_to_imgmsg(im, encoding='rgb8')
+        self.color_pub.publish(out_msg)
+
 # def thermal_clbk(msg):
 #     im = br.imgmsg_to_cv2(msg)
 #     im = transforms.ToTensor()(im.convert('1'))
