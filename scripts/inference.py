@@ -53,10 +53,11 @@ class Detection():
 
         for image_type in ['thermal']: # model_defs.keys():
             rospy.loginfo('Creating model: ' + image_type)
-            # self.models[image_type] = Darknet(self.model_defs[image_type], img_size=self.img_size[image_type]).to(device)
+            self.models[image_type] = Darknet(self.model_defs[image_type], img_size=self.img_size[image_type]).to(device)
             rospy.loginfo('Loading weights...')
-            # self.models[image_type].load_state_dict(torch.load(self.weights[image_type]))
-            # self.models[image_type].eval()
+            self.models[image_type].load_state_dict(torch.load(self.weights[image_type]))
+            self.models[image_type].eval()
+            print("here is", image_type, '\n', self.models[image_type])
             rospy.loginfo('Model preparation complete!')
 
     def overlay_bb(self, im, x1, y1, x2, y2, conf):
@@ -97,21 +98,27 @@ class Detection():
 
     def thermal_clbk(self, msg):
         im = br.imgmsg_to_cv2(msg)
+        print('cv', im.shape)
         # im = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
         # # https://stackoverflow.com/questions/43232813/convert-opencv-image-format-to-pil-image-format
         im_pil = self.to_pil(im)
-        im_pil = self.preprocess(im_pil).float()
+        print('pil', im_pil.mode, im_pil.size)
+        im_pil = transforms.ToTensor()(im_pil.convert('1'))
+        im_pil, _ = pad_to_square(im_pil, 0)
+        im_pil = resize(im_pil, self.img_size['thermal'])
+        # im_pil.show()
+        # im_pil = self.preprocess(im_pil).float()
+        print('pil', im_pil.mode, im_pil.size)
         im_pil = im_pil.unsqueeze_(0)
-        # im_pil = transforms.ToTensor()(im_pil.convert('RGB')).unsqueeze(0).cuda()
         input = Variable(im_pil) #.type(Tensor))
         input = input.to(device)
-        im = cv2.cvtColor(im, cv2.COLOR_GRAY2RGB) # back to color
         with torch.no_grad():
             rospy.loginfo('Running thermal inference!')
-            # detections = self.models['thermal'](input)
-            # detections = non_max_suppression(detections, self.conf_thresh, self.nms_thresh)
-            # detections = detections[0]
-        detections = None
+            detections = self.models['thermal'](input)
+            print(detections)
+            detections = non_max_suppression(detections, self.conf_thresh, self.nms_thresh)
+            detections = detections[0]
+        im = cv2.cvtColor(im, cv2.COLOR_GRAY2RGB) # back to color
         if detections is not None:
             print ('before', detections, type(detections)) #, detections.size())
             detections = rescale_boxes(detections, self.img_size['thermal'], im.shape[:2])
@@ -123,12 +130,7 @@ class Detection():
                 x2 = d[2]
                 y2 = d[3]
                 conf = d[4]
-        x1 = 3
-        y1 = 5
-        x2 = 60
-        y2 = 30
-        conf = 0.8
-        im = self.overlay_bb(im, x1, y1, x2, y2, conf)
+                im = self.overlay_bb(im, x1, y1, x2, y2, conf)
         out_msg = br.cv2_to_imgmsg(im, encoding='rgb8')
         self.thermal_pub.publish(out_msg)
 

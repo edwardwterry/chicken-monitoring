@@ -4,7 +4,7 @@ weights_color: '/home/ed/PyTorch-YOLOv3/weights/yolov3_ckpt_35.pth'
 weights_thermal: '/home/ed/PyTorch-YOLOv3/weights/yolov3_ckpt_55.pth'
 img_size_color: 416
 img_size_thermal: 416
-conf_thresh: 0.6
-nms_thresh: 0.4
+conf_thresh: 0.3
+nms_thresh: 0.2
 batch_size: 1
 n_cpu: 0
