@@ -51,28 +51,29 @@ class Detection():
         # Prepare models
         self.models = {'color': None, 'thermal': None}
 
-        for image_type in ['thermal']: # model_defs.keys():
+        for image_type in self.model_defs.keys():
             rospy.loginfo('Creating model: ' + image_type)
             self.models[image_type] = Darknet(self.model_defs[image_type], img_size=self.img_size[image_type]).to(device)
             rospy.loginfo('Loading weights...')
             self.models[image_type].load_state_dict(torch.load(self.weights[image_type]))
             self.models[image_type].eval()
-            print("here is", image_type, '\n', self.models[image_type])
+            # print("here is", image_type, '\n', self.models[image_type])
             rospy.loginfo('Model preparation complete!')
 
     def overlay_bb(self, im, x1, y1, x2, y2, conf):
         return cv2.rectangle(im, (x1, y1), (x2, y2), (255 * conf, 0, 0), 3)
 
     def color_clbk(self, msg):
-        pass
-        '''
         im = br.imgmsg_to_cv2(msg)
         im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
         # # https://stackoverflow.com/questions/43232813/convert-opencv-image-format-to-pil-image-format
         im_pil = self.to_pil(im)
-        im_pil = self.preprocess(im_pil).float()
+        print('pil', im_pil.mode, im_pil.size)
+        im_pil = transforms.ToTensor()(im_pil.convert('RGB'))
+        im_pil, _ = pad_to_square(im_pil, 0)
+        im_pil = resize(im_pil, self.img_size['color'])
+        print('pil', im_pil.mode, im_pil.size)
         im_pil = im_pil.unsqueeze_(0)
-        # im_pil = transforms.ToTensor()(im_pil.convert('RGB')).unsqueeze(0).cuda()
         input = Variable(im_pil) #.type(Tensor))
         input = input.to(device)
         with torch.no_grad():
@@ -81,10 +82,10 @@ class Detection():
             detections = non_max_suppression(detections, self.conf_thresh, self.nms_thresh)
             detections = detections[0]
         if detections is not None:
-            print ('before', detections, type(detections)) #, detections.size())
+            # print ('before', detections, type(detections)) #, detections.size())
             detections = rescale_boxes(detections, self.img_size['color'], im.shape[:2])
             detections = detections.data.cpu().numpy()
-            print ('after', detections, type(detections)) #, detections.size())
+            # print ('after', detections, type(detections)) #, detections.size())
             for d in detections:
                 x1 = d[0]
                 y1 = d[1]
@@ -94,21 +95,18 @@ class Detection():
                 im = self.overlay_bb(im, x1, y1, x2, y2, conf)
         out_msg = br.cv2_to_imgmsg(im, encoding='rgb8')
         self.color_pub.publish(out_msg)
-        '''
 
     def thermal_clbk(self, msg):
         im = br.imgmsg_to_cv2(msg)
-        print('cv', im.shape)
+        # print('cv', im.shape)
         # im = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
         # # https://stackoverflow.com/questions/43232813/convert-opencv-image-format-to-pil-image-format
         im_pil = self.to_pil(im)
-        print('pil', im_pil.mode, im_pil.size)
+        # print('pil', im_pil.mode, im_pil.size)
         im_pil = transforms.ToTensor()(im_pil.convert('1'))
         im_pil, _ = pad_to_square(im_pil, 0)
         im_pil = resize(im_pil, self.img_size['thermal'])
-        # im_pil.show()
-        # im_pil = self.preprocess(im_pil).float()
-        print('pil', im_pil.mode, im_pil.size)
+        # print('pil', im_pil.mode, im_pil.size)
         im_pil = im_pil.unsqueeze_(0)
         input = Variable(im_pil) #.type(Tensor))
         input = input.to(device)
@@ -120,10 +118,10 @@ class Detection():
             detections = detections[0]
         im = cv2.cvtColor(im, cv2.COLOR_GRAY2RGB) # back to color
         if detections is not None:
-            print ('before', detections, type(detections)) #, detections.size())
+            # print ('before', detections, type(detections)) #, detections.size())
             detections = rescale_boxes(detections, self.img_size['thermal'], im.shape[:2])
             detections = detections.data.cpu().numpy()
-            print ('after', detections, type(detections)) #, detections.size())
+            # print ('after', detections, type(detections)) #, detections.size())
             for d in detections:
                 x1 = d[0]
                 y1 = d[1]
