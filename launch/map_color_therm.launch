@@ -1,0 +1,4 @@
+<launch>
+  <node pkg="chicken_monitoring" type="map_color_therm.py" name="map_color_therm" output="screen"/>
+  <rosparam command="load" file="$(find chicken_monitoring)/cfg/extrinsics.yaml"/>
+</launch>
