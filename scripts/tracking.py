@@ -17,7 +17,7 @@ class Tracking():
         # Pub/sub
         self.color_all_bb_pub = rospy.Publisher('color_bb_all', Image, queue_size=1)
         self.color_sub = rospy.Subscriber('color', Image, self.im_clbk)
-        self.thermal_det_mapped_sub = rospy.Subscriber('thermal_det_mapped', Detection2DArray, self.clbk)
+        self.thermal_det_mapped_sub = rospy.Subscriber('thermal_det_mapped', Detection2DArray, self.thermal_det_clbk)
         self.im = None
 
     def overlay_bb(self, im, x1, y1, x2, y2, conf):
@@ -39,10 +39,11 @@ class Tracking():
         y1 = pt[3]
         return (0.5 * (x0 + x1), 0.5 * (y0 + y1), x1 - x0, y1 - y0)
 
-    def thermal_det_sub(self, msg):
-        if self.im:
+    def thermal_det_clbk(self, msg):
+        if self.im is not None:
             for det in msg.detections:
                 tlbr = self.xywh2tlbr([det.bbox.center.x, det.bbox.center.y, det.bbox.size_x, det.bbox.size_y])
+                tlbr = [int(x) for x in tlbr]
                 self.im = self.overlay_bb(self.im, tlbr[0], tlbr[1], tlbr[2], tlbr[3], det.results[0].score)
 
             # Convert back and publish
