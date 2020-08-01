@@ -1,0 +1,3 @@
+<launch>
+  <node pkg="chicken_monitoring" type="mot_tracker.py" name="mot_tracker" output="screen"/>
+</launch>
