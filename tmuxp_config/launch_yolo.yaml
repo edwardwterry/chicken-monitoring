@@ -20,3 +20,11 @@ windows:
         - dl
         - cvb
         - roslaunch chicken_monitoring inference.launch
+      - shell_command:
+        - sleep 2
+        - roslaunch chicken_monitoring map_color_therm.launch
+      - shell_command:
+        - sleep 2
+        - dl
+        - cvb
+        - roslaunch chicken_monitoring tracking.launch
