@@ -12,6 +12,7 @@ from vision_msgs.msg import Detection2DArray
 from sensor_msgs.msg import Image
 from sort import * 
 from matplotlib import pyplot as plt
+import copy
 
 br = CvBridge()
 np.set_printoptions(precision=3)
@@ -20,11 +21,13 @@ class Tracking():
     def __init__(self):
         # Pub/sub
         self.color_all_bb_pub = rospy.Publisher('color_bb_all', Image, queue_size=1)
+        self.color_det_bb_pub = rospy.Publisher('color_bb_det', Image, queue_size=1)
         self.color_sub = rospy.Subscriber('color', Image, self.im_clbk)
         self.thermal_det_mapped_sub = rospy.Subscriber('thermal_det_mapped', Detection2DArray, self.thermal_det_clbk)
         self.color_det_sub = rospy.Subscriber('color_det', Detection2DArray, self.color_det_clbk)
         self.im = None
-        self.mot_tracker = Sort()
+        self.im_det_only = None
+        self.mot_tracker = Sort(max_age=3, min_hits=1)
         self.track_bbs_ids = None
         # https://stackoverflow.com/questions/42086276/get-default-line-colour-cycle/42091037
         self.color_cycle = plt.rcParams['axes.prop_cycle'].by_key()['color']
@@ -34,10 +37,18 @@ class Tracking():
         h = h.strip('#')
         return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
 
-    def overlay_bb(self, im, x1, y1, x2, y2, id):
+    def overlay_bb_trk(self, im, x1, y1, x2, y2, id):
         color = self.hex2rgb(self.color_cycle[id % len(self.color_cycle)])
-        im = cv2.rectangle(im, (x1, y1), (x2, y2), color, 3)
         im = cv2.putText(im, '#' + str(id), (x1, y1), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA)
+        im = cv2.rectangle(im, (x1, y1), (x2, y2), color, 3)
+        return im
+
+    def overlay_bb_det(self, im, x1, y1, x2, y2, image_type):
+        if image_type == 'color':
+            color = (200, 200, 200)
+        else:
+            color = (30, 30, 30)
+        im = cv2.rectangle(im, (x1, y1), (x2, y2), color, 3)
         return im
 
     # center and width/height to top left, bottom right
@@ -61,16 +72,19 @@ class Tracking():
         if self.im is not None:
             for trk in self.track_bbs_ids:
                 trk = [int(x) for x in trk]
-                self.im = self.overlay_bb(self.im, trk[0], trk[1], trk[2], trk[3], trk[4])
+                self.im = self.overlay_bb_trk(self.im, trk[0], trk[1], trk[2], trk[3], trk[4])
             # Convert back and publish
             msg = br.cv2_to_imgmsg(self.im, encoding='rgb8')
+            msg_det_only = br.cv2_to_imgmsg(self.im_det_only, encoding='rgb8')
             self.color_all_bb_pub.publish(msg)
+            self.color_det_bb_pub.publish(msg_det_only)
 
     def thermal_det_clbk(self, msg):
         dets = []        
         for det in msg.detections:
             tlbr = self.xywh2tlbr([det.bbox.center.x, det.bbox.center.y, det.bbox.size_x, det.bbox.size_y])
             tlbr = [int(x) for x in tlbr]
+            self.im_det_only = self.overlay_bb_det(self.im_det_only, tlbr[0], tlbr[1], tlbr[2], tlbr[3], image_type='thermal')
             det = np.array([tlbr[0], tlbr[1], tlbr[2], tlbr[3], det.results[0].score])
             dets.append(det)
         self.track_bbs_ids = self.mot_tracker.update(np.array(dets))
@@ -81,6 +95,7 @@ class Tracking():
         for det in msg.detections:
             tlbr = self.xywh2tlbr([det.bbox.center.x, det.bbox.center.y, det.bbox.size_x, det.bbox.size_y])
             tlbr = [int(x) for x in tlbr]
+            self.im_det_only = self.overlay_bb_det(self.im_det_only, tlbr[0], tlbr[1], tlbr[2], tlbr[3], image_type='color')
             det = np.array([tlbr[0], tlbr[1], tlbr[2], tlbr[3], det.results[0].score])
             dets.append(det)
         self.track_bbs_ids = self.mot_tracker.update(np.array(dets))
@@ -88,6 +103,7 @@ class Tracking():
 
     def im_clbk(self, msg):
         self.im = br.imgmsg_to_cv2(msg)
+        self.im_det_only = copy.deepcopy(br.imgmsg_to_cv2(msg))
 
 def main():
     rospy.init_node('mot_tracker', anonymous=True)
