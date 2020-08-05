@@ -46,7 +46,7 @@ class Tracking():
         return im
 
     def add_to_mask(self, x1, y1, x2, y2, image_type):
-        self.masks[image_type] = cv2.rectangle(self.masks[image_type], (x1, y1), (x2, y2), (255, 255, 255), 3)
+        self.masks[image_type] = cv2.rectangle(self.masks[image_type], (x1, y1), (x2, y2), (255, 255, 255), 2)
 
     # center and width/height to top left, bottom right
     def xywh2tlbr(self, pt):
@@ -74,7 +74,7 @@ class Tracking():
             # Convert back and publish
             msg = br.cv2_to_imgmsg(self.im, encoding='bgr8')
             self.color_all_bb_pub.publish(msg)
-
+            self.publish_det_only_image()
 
     def thermal_det_clbk(self, msg):
         dets = []        
@@ -82,7 +82,7 @@ class Tracking():
         for det in msg.detections:
             tlbr = self.xywh2tlbr([det.bbox.center.x, det.bbox.center.y, det.bbox.size_x, det.bbox.size_y])
             tlbr = [int(x) for x in tlbr]
-            # self.im_det_only = self.overlay_bb_det(self.im_det_only, tlbr[0], tlbr[1], tlbr[2], tlbr[3], image_type='thermal')
+            self.add_to_mask(tlbr[0], tlbr[1], tlbr[2], tlbr[3], 'thermal')
             det = np.array([tlbr[0], tlbr[1], tlbr[2], tlbr[3], det.results[0].score])
             dets.append(det)
         self.track_bbs_ids = self.mot_tracker.update(np.array(dets))
@@ -104,8 +104,12 @@ class Tracking():
         rospy.loginfo('Received image at %f', float(msg.header.stamp.secs + msg.header.stamp.nsecs/1e9))
         self.im = br.imgmsg_to_cv2(msg)
         self.im_det_only = copy.deepcopy(br.imgmsg_to_cv2(msg))
+
+    def publish_det_only_image(self):
         print('im det, masks col shape', self.im_det_only.shape, self.masks['color'].shape)
-        self.im_det_only = cv2.bitwise_or(self.im_det_only, self.masks['color'])
+        # https://stackoverflow.com/questions/51168268/setting-pixels-values-in-opencv-python        
+        self.im_det_only[np.where(self.masks['thermal'] == 255)] = 0
+        self.im_det_only[np.where(self.masks['color'] == 255)] = 255
         msg_det_only = br.cv2_to_imgmsg(self.im_det_only, encoding='bgr8')
         self.color_det_bb_pub.publish(msg_det_only)
 
