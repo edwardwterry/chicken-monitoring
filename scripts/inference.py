@@ -63,6 +63,7 @@ class Detection():
             rospy.loginfo('Loading weights...')
             self.models[image_type].load_state_dict(torch.load(self.weights[image_type]))
             self.models[image_type].eval()
+            # print("here is", image_type, '\n', self.models[image_type])
             rospy.loginfo('Model preparation complete!')
 
     def overlay_bb(self, im, x1, y1, x2, y2, conf):

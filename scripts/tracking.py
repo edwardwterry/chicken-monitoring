@@ -74,8 +74,8 @@ class Tracking():
                 trk = [int(x) for x in trk]
                 self.im = self.overlay_bb_trk(self.im, trk[0], trk[1], trk[2], trk[3], trk[4])
             # Convert back and publish
-            msg = br.cv2_to_imgmsg(self.im, encoding='rgb8')
-            msg_det_only = br.cv2_to_imgmsg(self.im_det_only, encoding='rgb8')
+            msg = br.cv2_to_imgmsg(self.im, encoding='bgr8')
+            msg_det_only = br.cv2_to_imgmsg(self.im_det_only, encoding='bgr8')
             self.color_all_bb_pub.publish(msg)
             self.color_det_bb_pub.publish(msg_det_only)
 
