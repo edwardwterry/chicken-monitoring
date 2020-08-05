@@ -79,6 +79,7 @@ class Map():
         T = self.extr[date]
         tlbr = Utils.xywh2tlbr([in_box.center.x, in_box.center.y, in_box.size_x, in_box.size_y])
         tlbr = [self.scale('thermal', x) if src_dim == 'scaled' else x for x in tlbr]
+        # tlbr = [self.scale('thermal', x) for x in tlbr]
         tl = [tlbr[0], tlbr[1], 1.0] # convert to homogeneous form
         br = [tlbr[2], tlbr[3], 1.0] # convert to homogeneous form
         tl_T = np.dot(T, np.array(tl))
@@ -144,10 +145,11 @@ class Tracking():
 
     def det_clbk(self, msg):
         dets = []
-        image_type = 'color' # HACK! msg.header.frame_id
+        image_type = msg.header.frame_id
         self.masks[image_type].fill(0) # reset bounding box mask
         for det in msg.detections:
-            det.bbox = self.extr_map.map(det.bbox, Utils.timestamp_to_date(msg.header.stamp))
+            if image_type == 'thermal':
+                det.bbox = self.extr_map.map(det.bbox, Utils.timestamp_to_date(msg.header.stamp))
             tlbr = Utils.xywh2tlbr([det.bbox.center.x, det.bbox.center.y, det.bbox.size_x, det.bbox.size_y])
             tlbr = [int(x) for x in tlbr]
             self.add_to_mask(tlbr[0], tlbr[1], tlbr[2], tlbr[3], image_type)

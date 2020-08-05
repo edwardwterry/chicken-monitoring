@@ -98,6 +98,7 @@ class Detection():
 
         det_msg = Detection2DArray()
         det_msg.header = msg.header
+        det_msg.header.frame_id = 'color'
 
         if detections is not None:
             # print ('before', detections, type(detections)) #, detections.size())
@@ -153,6 +154,7 @@ class Detection():
 
         det_msg = Detection2DArray()
         det_msg.header = msg.header
+        det_msg.header.frame_id = 'thermal'
 
         if detections is not None:
             # print ('before', detections, type(detections)) #, detections.size())

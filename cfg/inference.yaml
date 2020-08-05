@@ -10,4 +10,4 @@ batch_size: 1
 n_cpu: 0
 to_run:
   color: False
-  thermal: True
+  thermal: True 

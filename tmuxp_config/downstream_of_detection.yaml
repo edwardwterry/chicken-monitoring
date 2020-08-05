@@ -24,10 +24,7 @@ windows:
         - roslaunch chicken_monitoring rqt.launch perspective:=color_bb_all
       - shell_command:
         - sleep 2
-        - cm
-        - roslaunch chicken_monitoring map_color_therm.launch
-      - shell_command:
-        - sleep 2
         - dl
         - cvb
         - roslaunch chicken_monitoring tracking.launch
+      - clear
