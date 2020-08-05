@@ -31,6 +31,8 @@ class Tracking():
         self.track_bbs_ids = None
         # https://stackoverflow.com/questions/42086276/get-default-line-colour-cycle/42091037
         self.color_cycle = plt.rcParams['axes.prop_cycle'].by_key()['color']
+        self.dims = tuple([int(x) for x in rospy.get_param('dims/color')])
+        self.masks = {'color': np.zeros(self.dims, np.uint8), 'thermal': np.zeros(self.dims, np.uint8)}
 
     def hex2rgb(self, h):
         # https://stackoverflow.com/questions/29643352/converting-hex-to-rgb-value-in-python
@@ -43,13 +45,8 @@ class Tracking():
         im = cv2.rectangle(im, (x1, y1), (x2, y2), color, 3)
         return im
 
-    def overlay_bb_det(self, im, x1, y1, x2, y2, image_type):
-        if image_type == 'color':
-            color = (200, 200, 200)
-        else:
-            color = (30, 30, 30)
-        im = cv2.rectangle(im, (x1, y1), (x2, y2), color, 3)
-        return im
+    def add_to_mask(self, x1, y1, x2, y2, image_type):
+        self.masks[image_type] = cv2.rectangle(self.masks[image_type], (x1, y1), (x2, y2), (255, 255, 255), 3)
 
     # center and width/height to top left, bottom right
     def xywh2tlbr(self, pt):
@@ -67,43 +64,50 @@ class Tracking():
         y1 = pt[3]
         return (0.5 * (x0 + x1), 0.5 * (y0 + y1), x1 - x0, y1 - y0)
 
-    def print_state(self, image_type):
-        print ('State update after', image_type, 'detection\n', self.track_bbs_ids)
+    def print_state(self, image_type, stamp):
+        rospy.loginfo('Update from %s at %f', image_type, float(stamp.secs + stamp.nsecs/1e9))
+        print(self.track_bbs_ids)
         if self.im is not None:
             for trk in self.track_bbs_ids:
                 trk = [int(x) for x in trk]
                 self.im = self.overlay_bb_trk(self.im, trk[0], trk[1], trk[2], trk[3], trk[4])
             # Convert back and publish
             msg = br.cv2_to_imgmsg(self.im, encoding='bgr8')
-            msg_det_only = br.cv2_to_imgmsg(self.im_det_only, encoding='bgr8')
             self.color_all_bb_pub.publish(msg)
-            self.color_det_bb_pub.publish(msg_det_only)
+
 
     def thermal_det_clbk(self, msg):
         dets = []        
+        self.masks['thermal'].fill(0)
         for det in msg.detections:
             tlbr = self.xywh2tlbr([det.bbox.center.x, det.bbox.center.y, det.bbox.size_x, det.bbox.size_y])
             tlbr = [int(x) for x in tlbr]
-            self.im_det_only = self.overlay_bb_det(self.im_det_only, tlbr[0], tlbr[1], tlbr[2], tlbr[3], image_type='thermal')
+            # self.im_det_only = self.overlay_bb_det(self.im_det_only, tlbr[0], tlbr[1], tlbr[2], tlbr[3], image_type='thermal')
             det = np.array([tlbr[0], tlbr[1], tlbr[2], tlbr[3], det.results[0].score])
             dets.append(det)
         self.track_bbs_ids = self.mot_tracker.update(np.array(dets))
-        self.print_state('thermal')
+        self.print_state('thermal', msg.header.stamp)
 
     def color_det_clbk(self, msg):
         dets = []
+        self.masks['color'].fill(0)
         for det in msg.detections:
             tlbr = self.xywh2tlbr([det.bbox.center.x, det.bbox.center.y, det.bbox.size_x, det.bbox.size_y])
             tlbr = [int(x) for x in tlbr]
-            self.im_det_only = self.overlay_bb_det(self.im_det_only, tlbr[0], tlbr[1], tlbr[2], tlbr[3], image_type='color')
+            self.add_to_mask(tlbr[0], tlbr[1], tlbr[2], tlbr[3], 'color')
             det = np.array([tlbr[0], tlbr[1], tlbr[2], tlbr[3], det.results[0].score])
             dets.append(det)
         self.track_bbs_ids = self.mot_tracker.update(np.array(dets))
-        self.print_state('color')
+        self.print_state('color', msg.header.stamp)
 
     def im_clbk(self, msg):
+        rospy.loginfo('Received image at %f', float(msg.header.stamp.secs + msg.header.stamp.nsecs/1e9))
         self.im = br.imgmsg_to_cv2(msg)
         self.im_det_only = copy.deepcopy(br.imgmsg_to_cv2(msg))
+        print('im det, masks col shape', self.im_det_only.shape, self.masks['color'].shape)
+        self.im_det_only = cv2.bitwise_or(self.im_det_only, self.masks['color'])
+        msg_det_only = br.cv2_to_imgmsg(self.im_det_only, encoding='bgr8')
+        self.color_det_bb_pub.publish(msg_det_only)
 
 def main():
     rospy.init_node('mot_tracker', anonymous=True)
