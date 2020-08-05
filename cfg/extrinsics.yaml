@@ -6,3 +6,5 @@ extrinsics:
 scales:
   thermal: 7.5
   color: 2.5
+dims:
+  color: [432, 768, 3]

@@ -1,4 +1,4 @@
 <launch>
   <node pkg="chicken_monitoring" type="tracking.py" name="tracking" output="screen"/>
-  <rosparam command="load" file="$(find chicken_monitoring)/cfg/tracking.yaml"/>
+  <rosparam command="load" file="$(find chicken_monitoring)/cfg/extrinsics.yaml"/>
 </launch>
