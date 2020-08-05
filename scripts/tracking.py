@@ -33,6 +33,9 @@ class Tracking():
         self.color_cycle = plt.rcParams['axes.prop_cycle'].by_key()['color']
         self.dims = tuple([int(x) for x in rospy.get_param('dims/color')])
         self.masks = {'color': np.zeros(self.dims, np.uint8), 'thermal': np.zeros(self.dims, np.uint8)}
+        self.screens = {'color': np.full(self.dims, 210), 'thermal': np.full(self.dims, 30)}
+        # self.screens = {'color': np.full(self.dims, 210, np.uint8), 'thermal': np.full(self.dims, 30, np.uint8)}
+        # assert([self.masks[x].shape == self.screens[x].shape for x in self.masks.keys()])
 
     def hex2rgb(self, h):
         # https://stackoverflow.com/questions/29643352/converting-hex-to-rgb-value-in-python
@@ -66,7 +69,7 @@ class Tracking():
 
     def print_state(self, image_type, stamp):
         rospy.loginfo('Update from %s at %f', image_type, float(stamp.secs + stamp.nsecs/1e9))
-        print(self.track_bbs_ids)
+        # print(self.track_bbs_ids)
         if self.im is not None:
             for trk in self.track_bbs_ids:
                 trk = [int(x) for x in trk]
@@ -91,9 +94,11 @@ class Tracking():
     def color_det_clbk(self, msg):
         dets = []
         self.masks['color'].fill(0)
+        assert(np.all(self.masks['color']) == 0)
         for det in msg.detections:
             tlbr = self.xywh2tlbr([det.bbox.center.x, det.bbox.center.y, det.bbox.size_x, det.bbox.size_y])
             tlbr = [int(x) for x in tlbr]
+            # print(np.count_nonzero(self.masks['color']))
             self.add_to_mask(tlbr[0], tlbr[1], tlbr[2], tlbr[3], 'color')
             det = np.array([tlbr[0], tlbr[1], tlbr[2], tlbr[3], det.results[0].score])
             dets.append(det)
@@ -101,15 +106,16 @@ class Tracking():
         self.print_state('color', msg.header.stamp)
 
     def im_clbk(self, msg):
-        rospy.loginfo('Received image at %f', float(msg.header.stamp.secs + msg.header.stamp.nsecs/1e9))
+        rospy.loginfo('>>> Received image at %f', float(msg.header.stamp.secs + msg.header.stamp.nsecs/1e9))
+        self.orig = copy.deepcopy(br.imgmsg_to_cv2(msg))
         self.im = br.imgmsg_to_cv2(msg)
         self.im_det_only = copy.deepcopy(br.imgmsg_to_cv2(msg))
 
     def publish_det_only_image(self):
-        print('im det, masks col shape', self.im_det_only.shape, self.masks['color'].shape)
         # https://stackoverflow.com/questions/51168268/setting-pixels-values-in-opencv-python        
-        self.im_det_only[np.where(self.masks['thermal'] == 255)] = 0
+        self.im_det_only = copy.deepcopy(self.orig)
         self.im_det_only[np.where(self.masks['color'] == 255)] = 255
+        self.im_det_only[np.where(self.masks['thermal'] == 255)] = 30
         msg_det_only = br.cv2_to_imgmsg(self.im_det_only, encoding='bgr8')
         self.color_det_bb_pub.publish(msg_det_only)
 
