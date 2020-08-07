@@ -45,7 +45,7 @@
                 },
                 "mouse_pub_topic": {
                   "type": "repr",
-                  "repr": "u'/color_bb_all_mouse_left'"
+                  "repr": "u'/color_bb_det_mouse_left'"
                 },
                 "num_gridlines": {
                   "type": "repr",
@@ -65,7 +65,7 @@
                 },
                 "topic": {
                   "type": "repr",
-                  "repr": "u'/color_bb_all'"
+                  "repr": "u'/color_bb_det'"
                 },
                 "publish_click_location": {
                   "type": "repr",
@@ -149,8 +149,8 @@
       "keys": {
         "geometry": {
           "type": "repr(QByteArray.hex)",
-          "repr(QByteArray.hex)": "QtCore.QByteArray('01d9d0cb00020000000001ef000000d4000005a60000037e000001ef000000f0000005a60000037e00000000000000000780')",
-          "pretty-print": "           ~       ~     "
+          "repr(QByteArray.hex)": "QtCore.QByteArray('01d9d0cb00020000000003a2000000dc0000075900000386000003a2000000f8000007590000038600000000000000000780')",
+          "pretty-print": "         Y       Y       "
         },
         "state": {
           "type": "repr(QByteArray.hex)",

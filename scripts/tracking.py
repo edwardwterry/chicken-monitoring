@@ -15,6 +15,7 @@ from sensor_msgs.msg import Image
 from sort import * 
 from matplotlib import pyplot as plt
 import copy
+import lap
 
 br = CvBridge()
 np.set_printoptions(precision=3)
@@ -79,7 +80,6 @@ class Map():
         T = self.extr[date]
         tlbr = Utils.xywh2tlbr([in_box.center.x, in_box.center.y, in_box.size_x, in_box.size_y])
         tlbr = [self.scale('thermal', x) if src_dim == 'scaled' else x for x in tlbr]
-        # tlbr = [self.scale('thermal', x) for x in tlbr]
         tl = [tlbr[0], tlbr[1], 1.0] # convert to homogeneous form
         br = [tlbr[2], tlbr[3], 1.0] # convert to homogeneous form
         tl_T = np.dot(T, np.array(tl))
@@ -121,10 +121,11 @@ class Tracking():
         self.thermal_fov_bb.center.y = 30
         self.thermal_fov_bb.size_x = 80
         self.thermal_fov_bb.size_y = 60
+        self.dets = {'color': [], 'thermal': []}
 
     def overlay_bb_trk(self, im, x1, y1, x2, y2, id):
         color = Utils.hex2rgb(self.color_cycle[id % len(self.color_cycle)])
-        im = cv2.putText(im, '#' + str(id), (x1, y1), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA)
+        im = cv2.putText(im, '#' + str(id), (x1, y2), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
         im = cv2.rectangle(im, (x1, y1), (x2, y2), color, 3)
         return im
 
@@ -135,6 +136,7 @@ class Tracking():
         rospy.loginfo('Update from %s at %f', image_type, float(stamp.secs + stamp.nsecs/1e9))
         # print(self.track_bbs_ids)
         if self.im is not None:
+            self.im = copy.deepcopy(self.orig)
             for trk in self.track_bbs_ids:
                 trk = [int(x) for x in trk]
                 self.im = self.overlay_bb_trk(self.im, trk[0], trk[1], trk[2], trk[3], trk[4])
@@ -143,19 +145,49 @@ class Tracking():
             self.color_all_bb_pub.publish(msg)
             self.publish_det_only_image()
 
+    # def within_thermal_fov(self, det):
+    #     pass
+
+    # def associate_color_thermal(self):
+    #     '''
+    #     For the intersecting region of both the thermal and color images
+    #     Find the optimal pairing between the color and thermal bounding boxes
+    #     '''
+    #     # Start with the basic case of both the color and thermal boxes being
+    #     # completely contained within the intersecting FOV
+        
+    #     # Assume the 'trackers' are the thermal boxes
+    #     # and the 'detections' are the color boxes, to be matched to the trackers
+
+    # def update_tracker(self):
+    #     # get the boxes which lie entirely within the thermal FOV
+    #     # bb_in_fov = {'color': [], 'thermal': []}
+
+
+    #     # find the boxes where the thermal bb will be used for segmentation
+    #     # for image_type in bb_in_fov.keys():
+    #     #     bb_in_fov[image_type] = [x for x in self.dets[image_type] if self.within_thermal_fov(box)]
+    #     # find the boxes where the color bb will be used for segmentation
+
+
     def det_clbk(self, msg):
-        dets = []
         image_type = msg.header.frame_id
+        self.dets[image_type] = []
         self.masks[image_type].fill(0) # reset bounding box mask
         for det in msg.detections:
             if image_type == 'thermal':
+                # convert it into color coordinates
                 det.bbox = self.extr_map.map(det.bbox, Utils.timestamp_to_date(msg.header.stamp))
             tlbr = Utils.xywh2tlbr([det.bbox.center.x, det.bbox.center.y, det.bbox.size_x, det.bbox.size_y])
             tlbr = [int(x) for x in tlbr]
             self.add_to_mask(tlbr[0], tlbr[1], tlbr[2], tlbr[3], image_type)
             det = np.array([tlbr[0], tlbr[1], tlbr[2], tlbr[3], det.results[0].score])
-            dets.append(det)
-        self.track_bbs_ids = self.mot_tracker.update(np.array(dets))
+            self.dets[image_type].append(det)
+        matched, unmatched_color, unmatched_thermal = associate_detections_to_trackers(self.dets['color'], self.dets['thermal'], iou_threshold=0.3)
+        print (matched, unmatched_color, unmatched_thermal)
+        # associated = self.associate_color_thermal()
+        self.track_bbs_ids = self.mot_tracker.update(np.array(self.dets[image_type]))
+
         self.print_state(image_type, msg.header.stamp)
 
     def im_clbk(self, msg):
