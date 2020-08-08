@@ -2,6 +2,7 @@
 
 import sys
 sys.path.append('/home/ed/sort/')
+sys.path.append('/home/ed/deep_sort/')
 
 import numpy as np
 import rospy
@@ -14,6 +15,7 @@ import datetime
 from sensor_msgs.msg import Image
 from sort import * 
 from matplotlib import pyplot as plt
+from chicken_monitoring.srv import ExtractFeatures
 import copy
 import lap
 
@@ -102,7 +104,7 @@ class Tracking():
         # Pub/sub
         self.color_all_bb_pub = rospy.Publisher('color_bb_all', Image, queue_size=1)
         self.color_det_bb_pub = rospy.Publisher('color_bb_det', Image, queue_size=1)
-        self.color_sub = rospy.Subscriber('color', Image, self.im_clbk)
+        # self.color_sub = rospy.Subscriber('color', Image, self.im_clbk)
         self.thermal_det_mapped_sub = rospy.Subscriber('thermal_det', Detection2DArray, self.det_clbk)
         self.color_det_sub = rospy.Subscriber('color_det', Detection2DArray, self.det_clbk)
         self.im = None
@@ -122,6 +124,8 @@ class Tracking():
         self.thermal_fov_bb.size_x = 80
         self.thermal_fov_bb.size_y = 60
         self.dets = {'color': [], 'thermal': []}
+        self.image_buffer = {'color': [], 'thermal': []}
+        self.extract_features = rospy.ServiceProxy('extract_features', ExtractFeatures)
 
     def overlay_bb_trk(self, im, x1, y1, x2, y2, id):
         color = Utils.hex2rgb(self.color_cycle[id % len(self.color_cycle)])
@@ -145,44 +149,27 @@ class Tracking():
             self.color_all_bb_pub.publish(msg)
             self.publish_det_only_image()
 
-    # def within_thermal_fov(self, det):
-    #     pass
-
-    # def associate_color_thermal(self):
-    #     '''
-    #     For the intersecting region of both the thermal and color images
-    #     Find the optimal pairing between the color and thermal bounding boxes
-    #     '''
-    #     # Start with the basic case of both the color and thermal boxes being
-    #     # completely contained within the intersecting FOV
-        
-    #     # Assume the 'trackers' are the thermal boxes
-    #     # and the 'detections' are the color boxes, to be matched to the trackers
-
-    # def update_tracker(self):
-    #     # get the boxes which lie entirely within the thermal FOV
-    #     # bb_in_fov = {'color': [], 'thermal': []}
-
-
-    #     # find the boxes where the thermal bb will be used for segmentation
-    #     # for image_type in bb_in_fov.keys():
-    #     #     bb_in_fov[image_type] = [x for x in self.dets[image_type] if self.within_thermal_fov(box)]
-    #     # find the boxes where the color bb will be used for segmentation
-
+    def resize_image(self, im, w, h):
+        return cv2.resize(im, (w, h))
 
     def det_clbk(self, msg):
         image_type = msg.header.frame_id
         self.dets[image_type] = []
         self.masks[image_type].fill(0) # reset bounding box mask
-        for det in msg.detections:
+        self.im = br.imgmsg_to_cv2(msg.detections[0].source_img) # save the color image corresponding to this detection
+        res = self.extract_features(msg.detections[0].source_img, msg)
+        features = res.features
+        print(features)
+        for det in msg.detections: # each bounding box
             if image_type == 'thermal':
-                # convert it into color coordinates
+                # convert it into color coordinates if from thermal
                 det.bbox = self.extr_map.map(det.bbox, Utils.timestamp_to_date(msg.header.stamp))
             tlbr = Utils.xywh2tlbr([det.bbox.center.x, det.bbox.center.y, det.bbox.size_x, det.bbox.size_y])
             tlbr = [int(x) for x in tlbr]
             self.add_to_mask(tlbr[0], tlbr[1], tlbr[2], tlbr[3], image_type)
             det = np.array([tlbr[0], tlbr[1], tlbr[2], tlbr[3], det.results[0].score])
             self.dets[image_type].append(det)
+
         matched, unmatched_color, unmatched_thermal = associate_detections_to_trackers(self.dets['color'], self.dets['thermal'], iou_threshold=0.3)
         print (matched, unmatched_color, unmatched_thermal)
         # associated = self.associate_color_thermal()
@@ -212,6 +199,7 @@ class Tracking():
 
 def main():
     rospy.init_node('mot_tracker', anonymous=True)
+    rospy.wait_for_service('extract_features')
     t = Tracking()
     while not rospy.is_shutdown():
         rospy.spin()

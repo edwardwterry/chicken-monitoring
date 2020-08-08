@@ -5,6 +5,7 @@ sys.path.append('/home/ed/PyTorch-YOLOv3/')
 
 from cv_bridge import CvBridge
 import numpy as np
+import copy
 import rospy
 import cv2
 import torch
@@ -44,13 +45,15 @@ class Detection():
         self.n_cpu = rospy.get_param('n_cpu')
         self.preprocess = transforms.Compose([transforms.Resize((416, 416)), transforms.ToTensor()])
         self.to_pil = transforms.ToPILImage()
+        self.curr_color = None
+
         # Prepare pub/sub
+        self.color_sub = rospy.Subscriber('color', RosImage, self.color_clbk)
+        self.thermal_sub = rospy.Subscriber('thermal', RosImage, self.thermal_clbk)
         if self.to_run['color']:
-            self.color_sub = rospy.Subscriber('color', RosImage, self.color_clbk)
             self.color_pub = rospy.Publisher('color_bb', RosImage, queue_size=1)
             self.color_det_pub = rospy.Publisher('color_det', Detection2DArray, queue_size=1)
         if self.to_run['thermal']:
-            self.thermal_sub = rospy.Subscriber('thermal', RosImage, self.thermal_clbk)
             self.thermal_pub = rospy.Publisher('thermal_bb', RosImage, queue_size=1)
             self.thermal_det_pub = rospy.Publisher('thermal_det', Detection2DArray, queue_size=1)
 
@@ -80,112 +83,117 @@ class Detection():
     def color_clbk(self, msg):
         im = br.imgmsg_to_cv2(msg)
         im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
-        # # https://stackoverflow.com/questions/43232813/convert-opencv-image-format-to-pil-image-format
-        im_pil = self.to_pil(im)
-        print('pil', im_pil.mode, im_pil.size)
-        im_pil = transforms.ToTensor()(im_pil.convert('RGB'))
-        im_pil, _ = pad_to_square(im_pil, 0)
-        im_pil = resize(im_pil, self.img_size['color'])
-        print('pil', im_pil.mode, im_pil.size)
-        im_pil = im_pil.unsqueeze_(0)
-        input = Variable(im_pil) #.type(Tensor))
-        input = input.to(device)
-        with torch.no_grad():
-            rospy.loginfo('Running color inference!')
-            detections = self.models['color'](input)
-            detections = non_max_suppression(detections, self.conf_thresh, self.nms_thresh)
-            detections = detections[0]
+        self.curr_color = copy.deepcopy(msg)
+        if self.to_run['color']:
+            # https://stackoverflow.com/questions/43232813/convert-opencv-image-format-to-pil-image-format
+            im_pil = self.to_pil(im)
+            print('pil', im_pil.mode, im_pil.size)
+            im_pil = transforms.ToTensor()(im_pil.convert('RGB'))
+            im_pil, _ = pad_to_square(im_pil, 0)
+            im_pil = resize(im_pil, self.img_size['color'])
+            print('pil', im_pil.mode, im_pil.size)
+            im_pil = im_pil.unsqueeze_(0)
+            input = Variable(im_pil) #.type(Tensor))
+            input = input.to(device)
+            with torch.no_grad():
+                rospy.loginfo('Running color inference!')
+                detections = self.models['color'](input)
+                detections = non_max_suppression(detections, self.conf_thresh, self.nms_thresh)
+                detections = detections[0]
 
-        det_msg = Detection2DArray()
-        det_msg.header = msg.header
-        det_msg.header.frame_id = 'color'
+            det_msg = Detection2DArray()
+            det_msg.header = msg.header
+            det_msg.header.frame_id = 'color'
+            if detections is not None:
+                # print ('before', detections, type(detections)) #, detections.size())
+                detections = rescale_boxes(detections, self.img_size['color'], im.shape[:2])
+                detections = detections.data.cpu().numpy()
+                # print ('after', detections, type(detections)) #, detections.size())
+                for d in detections:
+                    x1 = d[0]
+                    y1 = d[1]
+                    x2 = d[2]
+                    y2 = d[3]
+                    conf = d[4]
 
-        if detections is not None:
-            # print ('before', detections, type(detections)) #, detections.size())
-            detections = rescale_boxes(detections, self.img_size['color'], im.shape[:2])
-            detections = detections.data.cpu().numpy()
-            # print ('after', detections, type(detections)) #, detections.size())
-            for d in detections:
-                x1 = d[0]
-                y1 = d[1]
-                x2 = d[2]
-                y2 = d[3]
-                conf = d[4]
-
-                # Populate the detection message
-                det = Detection2D()
-                hyp = ObjectHypothesisWithPose()
-                hyp.score = conf
-                det.results.append(hyp)
-                xywh = self.tlbr2xywh([x1, y1, x2, y2])
-                det.bbox.center.x = xywh[0]
-                det.bbox.center.y = xywh[1]
-                det.bbox.size_x = xywh[2]
-                det.bbox.size_y = xywh[3]
-                det_msg.detections.append(det)
-                        
-                im = self.overlay_bb(im, x1, y1, x2, y2, conf)
-        out_msg = br.cv2_to_imgmsg(im, encoding='rgb8')
-        self.color_pub.publish(out_msg)
-        self.color_det_pub.publish(det_msg)
+                    # Populate the detection message
+                    det = Detection2D()
+                    hyp = ObjectHypothesisWithPose()
+                    hyp.score = conf
+                    det.results.append(hyp)
+                    xywh = self.tlbr2xywh([x1, y1, x2, y2])
+                    det.bbox.center.x = xywh[0]
+                    det.bbox.center.y = xywh[1]
+                    det.bbox.size_x = xywh[2]
+                    det.bbox.size_y = xywh[3]
+                    det.source_img = msg
+                    det_msg.detections.append(det)
+                            
+                    im = self.overlay_bb(im, x1, y1, x2, y2, conf)
+            out_msg = br.cv2_to_imgmsg(im, encoding='rgb8')
+            self.color_pub.publish(out_msg)
+            self.color_det_pub.publish(det_msg)
 
     def thermal_clbk(self, msg):
-        # pass
-        im = br.imgmsg_to_cv2(msg)
-        # print('cv', im.shape)
-        # im = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
-        # # https://stackoverflow.com/questions/43232813/convert-opencv-image-format-to-pil-image-format
-        im_pil = self.to_pil(im)
-        # print('pil', im_pil.mode, im_pil.size)
-        im_pil = transforms.ToTensor()(im_pil.convert('1'))
-        im_pil, _ = pad_to_square(im_pil, 0)
-        im_pil = resize(im_pil, self.img_size['thermal'])
-        # print('pil', im_pil.mode, im_pil.size)
-        im_pil = im_pil.unsqueeze_(0)
-        input = Variable(im_pil) #.type(Tensor))
-        input = input.to(device)
-        with torch.no_grad():
-            rospy.loginfo('Running thermal inference!')
-            detections = self.models['thermal'](input)
-            print(detections)
-            detections = non_max_suppression(detections, self.conf_thresh, self.nms_thresh)
-            detections = detections[0]
-        im = cv2.cvtColor(im, cv2.COLOR_GRAY2RGB) # back to color
+        if self.to_run['thermal']:
+            # pass
+            im = br.imgmsg_to_cv2(msg)
+            # print('cv', im.shape)
+            # im = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
+            # # https://stackoverflow.com/questions/43232813/convert-opencv-image-format-to-pil-image-format
+            im_pil = self.to_pil(im)
+            # print('pil', im_pil.mode, im_pil.size)
+            im_pil = transforms.ToTensor()(im_pil.convert('1'))
+            im_pil, _ = pad_to_square(im_pil, 0)
+            im_pil = resize(im_pil, self.img_size['thermal'])
+            # print('pil', im_pil.mode, im_pil.size)
+            im_pil = im_pil.unsqueeze_(0)
+            input = Variable(im_pil) #.type(Tensor))
+            input = input.to(device)
+            with torch.no_grad():
+                rospy.loginfo('Running thermal inference!')
+                detections = self.models['thermal'](input)
+                print(detections)
+                detections = non_max_suppression(detections, self.conf_thresh, self.nms_thresh)
+                detections = detections[0]
+            im = cv2.cvtColor(im, cv2.COLOR_GRAY2RGB) # back to color
 
-        det_msg = Detection2DArray()
-        det_msg.header = msg.header
-        det_msg.header.frame_id = 'thermal'
+            det_msg = Detection2DArray()
+            det_msg.header = msg.header
+            det_msg.header.frame_id = 'thermal'
 
-        if detections is not None:
-            # print ('before', detections, type(detections)) #, detections.size())
-            detections = rescale_boxes(detections, self.img_size['thermal'], im.shape[:2])
-            detections = detections.data.cpu().numpy()
-            # print ('after', detections, type(detections)) #, detections.size())
-            for d in detections:
-                x1 = d[0]
-                y1 = d[1]
-                x2 = d[2]
-                y2 = d[3]
-                conf = d[4]
+            if detections is not None:
+                # print ('before', detections, type(detections)) #, detections.size())
+                detections = rescale_boxes(detections, self.img_size['thermal'], im.shape[:2])
+                detections = detections.data.cpu().numpy()
+                # print ('after', detections, type(detections)) #, detections.size())
+                for d in detections:
+                    x1 = d[0]
+                    y1 = d[1]
+                    x2 = d[2]
+                    y2 = d[3]
+                    conf = d[4]
 
-                # Populate the detection message
-                det = Detection2D()
-                hyp = ObjectHypothesisWithPose()
-                hyp.score = conf
-                det.results.append(hyp)
-                xywh = self.tlbr2xywh([x1, y1, x2, y2])
-                det.bbox.center.x = xywh[0]
-                det.bbox.center.y = xywh[1]
-                det.bbox.size_x = xywh[2]
-                det.bbox.size_y = xywh[3]
-                det_msg.detections.append(det)
+                    # Populate the detection message
+                    det = Detection2D()
+                    hyp = ObjectHypothesisWithPose()
+                    hyp.score = conf
+                    det.results.append(hyp)
+                    xywh = self.tlbr2xywh([x1, y1, x2, y2])
+                    det.bbox.center.x = xywh[0]
+                    det.bbox.center.y = xywh[1]
+                    det.bbox.size_x = xywh[2]
+                    det.bbox.size_y = xywh[3]
+                    if self.curr_color is not None:
+                        det.source_img = self.curr_color
+                    det_msg.detections.append(det)
 
-                # Overlay on the image
-                im = self.overlay_bb(im, x1, y1, x2, y2, conf)        
+                    # Overlay on the image
+                    im = self.overlay_bb(im, x1, y1, x2, y2, conf)        
 
-        out_msg = br.cv2_to_imgmsg(im, encoding='rgb8')
-        self.thermal_pub.publish(out_msg)
-        self.thermal_det_pub.publish(det_msg)
+            out_msg = br.cv2_to_imgmsg(im, encoding='rgb8')
+            self.thermal_pub.publish(out_msg)
+            self.thermal_det_pub.publish(det_msg)
 
 def main(args):
     rospy.init_node('inference', anonymous=True)

@@ -1,0 +1,4 @@
+sensor_msgs/Image im
+vision_msgs/Detection2DArray dets
+---
+std_msgs/Float32MultiArray features

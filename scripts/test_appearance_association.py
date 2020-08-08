@@ -1,5 +1,8 @@
+#!/usr/bin/env python3
+
 import os
 import cv2
+from cv_bridge import CvBridge
 from PIL import Image
 import torch
 import torch.nn as nn
@@ -10,11 +13,21 @@ from sklearn.preprocessing import normalize
 import numpy as np
 from scipy.spatial import distance
 import lap
+from chicken_monitoring.srv import ExtractFeatures
+import rospy
 path = '/home/ed/Data/frames/appearance'
 
+br = CvBridge()
 np.set_printoptions(precision=3)
 
 frames = {}
+
+def xywh2tlbr(pt):
+    x = pt[0]
+    y = pt[1]
+    w = pt[2]
+    h = pt[3]
+    return [x - w/2, y - h/2, x + w/2, y + h/2]
 
 class ConvNet(nn.Module):
     def __init__(self):
@@ -43,6 +56,7 @@ class Flatten(nn.Module):
     def forward(self, x):
         return x.view(x.size(0), -1)
 
+
 # Utility transform to normalize the PIL image dataset from [0,1] to [-1,1]
 tf = transforms.Compose([transforms.ToTensor(),
                          transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
@@ -64,44 +78,70 @@ for param in model_feat.parameters():
 model_feat.eval()
 model_feat.to(device)
 
-for root, dirs, files in os.walk(path):
-    if not dirs and not root.split('/')[-1] == 'src':
-        print('Starting a new batch!')
-        files = sorted(files)
-        names = [int(x.split('.')[0]) for x in files]
-        images = [Image.open(os.path.join(root, x)) for x in files]
-        images = [x.resize((32, 32)) for x in images]
-        images = [tf(x) for x in images]
-        features = {}
-        for name, im in zip(names, images):
-            im = im.unsqueeze(0).to(device)
-            with torch.no_grad():
-                print('Running inference!')
-                output = model_feat(im)
-                f = normalize(output.data.cpu().numpy())
-                features.update({name: f})
-        frames.update({int(root.split('/')[-1]): features})
+# for root, dirs, files in os.walk(path):
+#     if not dirs and not root.split('/')[-1] == 'src':
+#         print('Starting a new batch!')
+#         files = sorted(files)
+#         names = [int(x.split('.')[0]) for x in files]
+#         images = [Image.open(os.path.join(root, x)) for x in files]
+#         images = [x.resize((32, 32)) for x in images]
+#         images = [tf(x) for x in images]
+#         features = {}
+#         for name, im in zip(names, images):
+#             im = im.unsqueeze(0).to(device)
+#             with torch.no_grad():
+#                 print('Running inference!')
+#                 output = model_feat(im)
+#                 f = normalize(output.data.cpu().numpy())
+#                 features.update({name: f})
+#         frames.update({int(root.split('/')[-1]): features})
 
-# print(frames)
+# ROS stuff
+def handle_extract_features(req):
+    im = req.im
+    dets = req.dets
+    # Process image
+    im = br.imgmsg_to_cv2(im)
+    im = transforms.ToPILImage(im)
+    features = []
+    for det in dets.detections:
+        tlbr = xywh2tlbr([det.bbox.center.x, det.bbox.center.y, det.bbox.size_x, det.bbox.size_y])
+        seg = im.crop((tlbr[1], tlbr[0], tlbr[3], tlbr[2]))
+        seg = seg.resize((32, 32))
+        seg = tf(seg)
+        seg = seg.unsqueeze(0).to(device)
+        with torch.no_grad():
+            output = model_feat(seg)
+            features.append(output.data.cpu().numpy())
+    return ExtractFeaturesResponse(features)
 
-for i in range(len(frames) - 1):
-    print ('Comparison', i)
-    curr = np.array([frames[i+1][x] for x in frames[i+1]])
-    prev = np.array([frames[i][x] for x in frames[i]])
-    curr = np.squeeze(curr)
-    prev = np.squeeze(prev)
-    dists = []
-    for c in curr:
-        row = []
-        for p in prev:
-            row.append(distance.cosine(c, p))
-        dists.append(row)
-    # print (dists)
-    cost, x, y = lap.lapjv(np.array(dists), extend_cost=True)
-    print (cost)
-    print (x)
-    print (y)
-    A = np.zeros_like(dists)
-    for i in range(A.shape[0]):
-        A[i, x[i]] = 1
-    print (A)
+def extract_features_server():
+    rospy.init_node('extract_features_server')
+    s = rospy.Service('extract_features', ExtractFeatures, handle_extract_features)
+    rospy.spin()
+
+if __name__ == '__main__':
+    extract_features_server()
+
+# for i in range(len(frames) - 1):
+#     print ('Comparison', i)
+#     curr = np.array([frames[i+1][x] for x in frames[i+1]])
+#     prev = np.array([frames[i][x] for x in frames[i]])
+#     curr = np.squeeze(curr)
+#     prev = np.squeeze(prev)
+#     dists = []
+#     for c in curr:
+#         row = []
+#         for p in prev:
+#             row.append(distance.cosine(c, p))
+#         dists.append(row)
+#     # print (dists)
+#     cost, x, y = lap.lapjv(np.array(dists), extend_cost=True)
+#     print (cost)
+#     print (x)
+#     print (y)
+#     A = np.zeros_like(dists)
+#     for i in range(A.shape[0]):
+#         A[i, x[i]] = 1
+#     print (A)
+
