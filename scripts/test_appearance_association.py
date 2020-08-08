@@ -8,6 +8,8 @@ import torchvision
 import torchvision.transforms as transforms
 from sklearn.preprocessing import normalize
 import numpy as np
+from scipy.spatial import distance
+import lap
 path = '/home/ed/Data/frames/appearance'
 
 np.set_printoptions(precision=3)
@@ -83,9 +85,23 @@ for root, dirs, files in os.walk(path):
 # print(frames)
 
 for i in range(len(frames) - 1):
-    curr = np.array([x for x in frames[i+1]])
-    prev = np.array([x for x in frames[i]])
-    print (np.linalg.norm(curr))
-    print (np.linalg.norm(prev))
-    distance = np.dot(curr, prev)
-    print (distance)
+    print ('Comparison', i)
+    curr = np.array([frames[i+1][x] for x in frames[i+1]])
+    prev = np.array([frames[i][x] for x in frames[i]])
+    curr = np.squeeze(curr)
+    prev = np.squeeze(prev)
+    dists = []
+    for c in curr:
+        row = []
+        for p in prev:
+            row.append(distance.cosine(c, p))
+        dists.append(row)
+    # print (dists)
+    cost, x, y = lap.lapjv(np.array(dists), extend_cost=True)
+    print (cost)
+    print (x)
+    print (y)
+    A = np.zeros_like(dists)
+    for i in range(A.shape[0]):
+        A[i, x[i]] = 1
+    print (A)
