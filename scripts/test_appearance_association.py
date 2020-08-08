@@ -13,7 +13,8 @@ from sklearn.preprocessing import normalize
 import numpy as np
 from scipy.spatial import distance
 import lap
-from chicken_monitoring.srv import ExtractFeatures
+from chicken_monitoring.srv import ExtractFeatures, ExtractFeaturesResponse
+from std_msgs.msg import Float32MultiArray, MultiArrayDimension
 import rospy
 path = '/home/ed/Data/frames/appearance'
 
@@ -78,6 +79,14 @@ for param in model_feat.parameters():
 model_feat.eval()
 model_feat.to(device)
 
+print('Running dummy input to prime inference')
+dummy = Image.new('RGB', (32, 32))
+dummy = tf(dummy)
+dummy = dummy.unsqueeze(0).to(device)
+with torch.no_grad():
+    model_feat(dummy)
+print('Model priming complete!')
+
 # for root, dirs, files in os.walk(path):
 #     if not dirs and not root.split('/')[-1] == 'src':
 #         print('Starting a new batch!')
@@ -102,7 +111,8 @@ def handle_extract_features(req):
     dets = req.dets
     # Process image
     im = br.imgmsg_to_cv2(im)
-    im = transforms.ToPILImage(im)
+    im = transforms.ToPILImage()(im)
+    out = ExtractFeaturesResponse()
     features = []
     for det in dets.detections:
         tlbr = xywh2tlbr([det.bbox.center.x, det.bbox.center.y, det.bbox.size_x, det.bbox.size_y])
@@ -112,8 +122,15 @@ def handle_extract_features(req):
         seg = seg.unsqueeze(0).to(device)
         with torch.no_grad():
             output = model_feat(seg)
-            features.append(output.data.cpu().numpy())
-    return ExtractFeaturesResponse(features)
+            f = output.data.cpu().numpy()
+            features.append(f)
+    features = np.array(features).flatten()
+    out.features.data = features
+    # https://gist.github.com/jarvisschultz/7a886ed2714fac9f5226
+    out.features.layout.dim.append(MultiArrayDimension())
+    out.features.layout.dim[0].size = len(f)
+
+    return out
 
 def extract_features_server():
     rospy.init_node('extract_features_server')

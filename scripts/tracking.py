@@ -159,7 +159,7 @@ class Tracking():
         self.im = br.imgmsg_to_cv2(msg.detections[0].source_img) # save the color image corresponding to this detection
         res = self.extract_features(msg.detections[0].source_img, msg)
         features = res.features
-        print(features)
+        # print(features)
         for det in msg.detections: # each bounding box
             if image_type == 'thermal':
                 # convert it into color coordinates if from thermal
