@@ -128,7 +128,8 @@ def handle_extract_features(req):
     out.features.data = features
     # https://gist.github.com/jarvisschultz/7a886ed2714fac9f5226
     out.features.layout.dim.append(MultiArrayDimension())
-    out.features.layout.dim[0].size = len(f)
+    out.features.layout.dim[0].size = len(dets.detections)
+    out.features.layout.dim[0].stride = 120
 
     return out
 
