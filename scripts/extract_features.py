@@ -17,6 +17,7 @@ from chicken_monitoring.srv import ExtractFeatures, ExtractFeaturesResponse
 from std_msgs.msg import Float32MultiArray, MultiArrayDimension
 import rospy
 path = '/home/ed/Data/frames/appearance'
+import time
 
 br = CvBridge()
 np.set_printoptions(precision=3)
@@ -106,9 +107,7 @@ print('Model priming complete!')
 #         frames.update({int(root.split('/')[-1]): features})
 
 # ROS stuff
-def handle_extract_features(req):
-    im = req.im
-    dets = req.dets
+def extract_features(im, dets):
     # Process image
     im = br.imgmsg_to_cv2(im)
     im = transforms.ToPILImage()(im)
@@ -121,7 +120,9 @@ def handle_extract_features(req):
         seg = tf(seg)
         seg = seg.unsqueeze(0).to(device)
         with torch.no_grad():
+            t = time.time()
             output = model_feat(seg)
+            print('Inference is running at', 1.0/(time.time() - t), 'FPS')
             f = output.data.cpu().numpy()
             features.append(f)
     features = np.array(features).flatten()
@@ -133,13 +134,41 @@ def handle_extract_features(req):
 
     return out
 
-def extract_features_server():
-    rospy.init_node('extract_features_server')
-    s = rospy.Service('extract_features', ExtractFeatures, handle_extract_features)
-    rospy.spin()
+# # ROS stuff
+# def handle_extract_features(req):
+#     im = req.im
+#     dets = req.dets
+#     # Process image
+#     im = br.imgmsg_to_cv2(im)
+#     im = transforms.ToPILImage()(im)
+#     out = ExtractFeaturesResponse()
+#     features = []
+#     for det in dets.detections:
+#         tlbr = xywh2tlbr([det.bbox.center.x, det.bbox.center.y, det.bbox.size_x, det.bbox.size_y])
+#         seg = im.crop((tlbr[1], tlbr[0], tlbr[3], tlbr[2]))
+#         seg = seg.resize((32, 32))
+#         seg = tf(seg)
+#         seg = seg.unsqueeze(0).to(device)
+#         with torch.no_grad():
+#             output = model_feat(seg)
+#             f = output.data.cpu().numpy()
+#             features.append(f)
+#     features = np.array(features).flatten()
+#     out.features.data = features
+#     # https://gist.github.com/jarvisschultz/7a886ed2714fac9f5226
+#     out.features.layout.dim.append(MultiArrayDimension())
+#     out.features.layout.dim[0].size = len(dets.detections)
+#     out.features.layout.dim[0].stride = 120
 
-if __name__ == '__main__':
-    extract_features_server()
+#     return out
+
+# def extract_features_server():
+#     rospy.init_node('extract_features_server')
+#     s = rospy.Service('extract_features', ExtractFeatures, handle_extract_features)
+#     rospy.spin()
+
+# if __name__ == '__main__':
+#     extract_features_server()
 
 # for i in range(len(frames) - 1):
 #     print ('Comparison', i)

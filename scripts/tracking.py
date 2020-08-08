@@ -19,6 +19,7 @@ from deep_sort.detection import Detection
 from deep_sort.tracker import Tracker
 from matplotlib import pyplot as plt
 from chicken_monitoring.srv import ExtractFeatures
+from extract_features import extract_features 
 import copy
 import lap
 
@@ -137,6 +138,8 @@ class Tracking():
             "cosine", max_cosine_distance, nn_budget)
         self.tracker = Tracker(metric)
 
+        print('Node initialization complete!')
+
     def overlay_bb_trk(self, im, x1, y1, x2, y2, id):
         color = Utils.hex2rgb(self.color_cycle[id % len(self.color_cycle)])
         im = cv2.putText(im, '#' + str(id), (x1, y2), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
@@ -179,7 +182,7 @@ class Tracking():
         self.dets[image_type] = []
         self.masks[image_type].fill(0) # reset bounding box mask
         self.im = br.imgmsg_to_cv2(msg.detections[0].source_img) # save the color image corresponding to this detection
-        res = self.extract_features(msg.detections[0].source_img, msg)
+        res = extract_features(msg.detections[0].source_img, msg)
         # print(res.features)
         features = np.reshape(res.features.data, (res.features.layout.dim[0].size, res.features.layout.dim[0].stride))
         detection_list = self.create_detection_list(msg.detections, features, image_type, msg.header.stamp)
@@ -226,7 +229,6 @@ class Tracking():
 
 def main():
     rospy.init_node('mot_tracker', anonymous=True)
-    rospy.wait_for_service('extract_features')
     t = Tracking()
     while not rospy.is_shutdown():
         rospy.spin()
