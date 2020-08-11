@@ -182,7 +182,9 @@ class Tracking():
                 det.bbox = self.extr_map.map(det.bbox, Utils.timestamp_to_date(stamp))
             # tlbr = Utils.xywh2tlbr([det.bbox.center.x, det.bbox.center.y, det.bbox.size_x, det.bbox.size_y])
             # tlbr = [int(x) for x in tlbr]
-            obj = Detection([det.bbox.center.x, det.bbox.center.y, det.bbox.size_x, det.bbox.size_y], det.results[0].score, feat)
+            tl_x = det.bbox.center.x - det.bbox.size_x / 2
+            tl_y = det.bbox.center.y - det.bbox.size_y / 2
+            obj = Detection([tl_x, tl_y, det.bbox.size_x, det.bbox.size_y], det.results[0].score, feat)
             detection_list.append(obj)
         return detection_list
 
@@ -222,7 +224,7 @@ class Tracking():
         for trk in self.tracker.tracks:
             tlbr = Utils.xyah2tlbr(trk.mean[0:4])
             tlbr = [int(x) for x in tlbr]
-
+            print(tlbr)
             im = self.overlay_bb_trk(im, tlbr[0], tlbr[1], tlbr[2], tlbr[3], trk.track_id)
         # Convert back and publish
         msg = br.cv2_to_imgmsg(im, encoding='bgr8')
