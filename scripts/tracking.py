@@ -56,6 +56,15 @@ class Utils():
         h = pt[3]
         return [x - w/2, y - h/2, x + w/2, y + h/2]
 
+    @staticmethod
+    def xyah2tlbr(pt):
+        x = pt[0]
+        y = pt[1]
+        a = pt[2]
+        h = pt[3]
+        w = a * h
+        return [x - w/2, y - h/2, x + w/2, y + h/2]
+
     # top left, bottom right to center and width/height
     @staticmethod
     def tlbr2xywh(pt):
@@ -112,7 +121,7 @@ class Tracking():
         self.color_all_bb_pub = rospy.Publisher('color_bb_all', Image, queue_size=1)
         self.color_det_bb_pub = rospy.Publisher('color_bb_det', Image, queue_size=1)
         # self.color_sub = rospy.Subscriber('color', Image, self.im_clbk)
-        self.thermal_det_mapped_sub = rospy.Subscriber('thermal_det', Detection2DArray, self.det_clbk)
+        # self.thermal_det_mapped_sub = rospy.Subscriber('thermal_det', Detection2DArray, self.det_clbk)
         self.color_det_sub = rospy.Subscriber('color_det', Detection2DArray, self.det_clbk)
         self.im = None
         self.im_det_only = None
@@ -132,7 +141,7 @@ class Tracking():
         self.thermal_fov_bb.size_y = 60
         self.dets = {'color': [], 'thermal': []}
         self.image_buffer = {'color': [], 'thermal': []}
-        self.extract_features = rospy.ServiceProxy('extract_features', ExtractFeatures)
+        # self.extract_features = rospy.ServiceProxy('extract_features', ExtractFeatures)
 
         metric = nn_matching.NearestNeighborDistanceMetric(
             "cosine", max_cosine_distance, nn_budget)
@@ -171,9 +180,9 @@ class Tracking():
             if image_type == 'thermal':
                 # convert it into color coordinates if from thermal
                 det.bbox = self.extr_map.map(det.bbox, Utils.timestamp_to_date(stamp))
-            tlbr = Utils.xywh2tlbr([det.bbox.center.x, det.bbox.center.y, det.bbox.size_x, det.bbox.size_y])
-            tlbr = [int(x) for x in tlbr]
-            obj = Detection([tlbr[1], tlbr[0], tlbr[3], tlbr[2]], det.results[0].score, feat)
+            # tlbr = Utils.xywh2tlbr([det.bbox.center.x, det.bbox.center.y, det.bbox.size_x, det.bbox.size_y])
+            # tlbr = [int(x) for x in tlbr]
+            obj = Detection([det.bbox.center.x, det.bbox.center.y, det.bbox.size_x, det.bbox.size_y], det.results[0].score, feat)
             detection_list.append(obj)
         return detection_list
 
@@ -187,25 +196,37 @@ class Tracking():
         features = np.reshape(res.features.data, (res.features.layout.dim[0].size, res.features.layout.dim[0].stride))
         detection_list = self.create_detection_list(msg.detections, features, image_type, msg.header.stamp)
         # print(features)
-        for det in msg.detections: # each bounding box
-            if image_type == 'thermal':
-                # convert it into color coordinates if from thermal
-                det.bbox = self.extr_map.map(det.bbox, Utils.timestamp_to_date(msg.header.stamp))
-            tlbr = Utils.xywh2tlbr([det.bbox.center.x, det.bbox.center.y, det.bbox.size_x, det.bbox.size_y])
-            tlbr = [int(x) for x in tlbr]
-            self.add_to_mask(tlbr[0], tlbr[1], tlbr[2], tlbr[3], image_type)
-            det = np.array([tlbr[0], tlbr[1], tlbr[2], tlbr[3], det.results[0].score])
-            self.dets[image_type].append(det)
+        # for det in msg.detections: # each bounding box
+        #     if image_type == 'thermal':
+        #         # convert it into color coordinates if from thermal
+        #         det.bbox = self.extr_map.map(det.bbox, Utils.timestamp_to_date(msg.header.stamp))
+        #     tlbr = Utils.xywh2tlbr([det.bbox.center.x, det.bbox.center.y, det.bbox.size_x, det.bbox.size_y])
+        #     tlbr = [int(x) for x in tlbr]
+        #     self.add_to_mask(tlbr[0], tlbr[1], tlbr[2], tlbr[3], image_type)
+        #     det = np.array([tlbr[0], tlbr[1], tlbr[2], tlbr[3], det.results[0].score])
+            # self.dets[image_type].append(det)
         # matched, unmatched_color, unmatched_thermal = associate_detections_to_trackers(self.dets['color'], self.dets['thermal'], iou_threshold=0.3)
         # Update tracker.
         self.tracker.predict()
         self.tracker.update(detection_list)
-        print('Updated tracker!')
+        print([x.mean for x in self.tracker.tracks])
+        self.publish_track_im()
         # print (matched, unmatched_color, unmatched_thermal)
         # associated = self.associate_color_thermal()
         # self.track_bbs_ids = self.mot_tracker.update(np.array(self.dets[image_type]))
 
         # self.print_state(image_type, msg.header.stamp)
+
+    def publish_track_im(self):
+        im = self.im.copy()
+        for trk in self.tracker.tracks:
+            tlbr = Utils.xyah2tlbr(trk.mean[0:4])
+            tlbr = [int(x) for x in tlbr]
+
+            im = self.overlay_bb_trk(im, tlbr[0], tlbr[1], tlbr[2], tlbr[3], trk.track_id)
+        # Convert back and publish
+        msg = br.cv2_to_imgmsg(im, encoding='bgr8')
+        self.color_all_bb_pub.publish(msg)            
 
     def im_clbk(self, msg):
         rospy.loginfo('>>> Received image at %f', float(msg.header.stamp.secs + msg.header.stamp.nsecs/1e9))
@@ -215,7 +236,7 @@ class Tracking():
         # overlay box corresponding to FOV of thermal camera
         fov = self.extr_map.map(self.thermal_fov_bb, Utils.timestamp_to_date(msg.header.stamp), 'original')
         fov = Utils.xywh2tlbr([fov.center.x, fov.center.y, fov.size_x, fov.size_y])
-        fov = [int(x) for x in fov]        
+        fov = [int(x) for x in fov]
         self.add_to_mask(fov[0], fov[1], fov[2], fov[3], 'thermal_fov')
 
     def publish_det_only_image(self):
