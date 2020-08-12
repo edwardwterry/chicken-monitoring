@@ -67,6 +67,14 @@ for param in model_feat.parameters():
 model_feat.eval()
 model_feat.to(device)
 
+print('Running dummy input to prime inference')
+dummy = Image.new('RGB', (32, 32))
+dummy = tf(dummy)
+dummy = dummy.unsqueeze(0).to(device)
+with torch.no_grad():
+    model_feat(dummy)
+print('Model priming complete!')
+
 images_src = path + dirs['images'] + '/' + image_type + '/' + seq
 tracks_src = path + dirs['labels'] + '/' + image_type + '/' + seq + '/' + 'tracks'
 
@@ -85,12 +93,17 @@ for root, dirs, files in os.walk(images_src):
         files = sorted(files)
         names = [x.split('.')[0] for x in files]
         images = [Image.open(os.path.join(root, x)) for x in files]
+        frames = []
         for name, image in zip(names, images):
+            features = {}
             labels = os.path.join(tracks_src, name + '.txt')
+            # print(labels)
             with open(labels, 'r') as label_file:
                 for row in label_file:
                     xywh = [float(x) for x in row.split(' ')[1:5]]
+                    track_id = int(row.split(' ')[5])
                     tlbr = xywh2tlbr(xywh[0], xywh[1], xywh[2], xywh[3], image.size)
+                    print(tlbr)
                     cropped = crop_bb(image, tlbr[0], tlbr[1], tlbr[2], tlbr[3])
                     cropped = cropped.resize((32, 32))
                     cropped = tf(cropped)
@@ -99,30 +112,30 @@ for root, dirs, files in os.walk(images_src):
                         print('Running inference!')
                         output = model_feat(cropped)
                         f = normalize(output.data.cpu().numpy())
-                        print(f)
-                        # features.update({name: f})
-        # frames.update({int(root.split('/')[-1]): features})
+                        # print(f)
+                        features.update({track_id: f})
+            frames.append(features)
 
 # print(frames)
 
-# for i in range(len(frames) - 1):
-#     print ('Comparison', i)
-#     curr = np.array([frames[i+1][x] for x in frames[i+1]])
-#     prev = np.array([frames[i][x] for x in frames[i]])
-#     curr = np.squeeze(curr)
-#     prev = np.squeeze(prev)
-#     dists = []
-#     for c in curr:
-#         row = []
-#         for p in prev:
-#             row.append(distance.cosine(c, p))
-#         dists.append(row)
-#     # print (dists)
-#     cost, x, y = lap.lapjv(np.array(dists), extend_cost=True)
-#     print (cost)
-#     print (x)
-#     print (y)
-#     A = np.zeros_like(dists)
-#     for i in range(A.shape[0]):
-#         A[i, x[i]] = 1
-#     print (A)
+for i in range(len(frames) - 1):
+    print ('Comparison', i)
+    curr = np.array([frames[i+1][x] for x in frames[i+1]])
+    prev = np.array([frames[i][x] for x in frames[i]])
+    curr = np.squeeze(curr)
+    prev = np.squeeze(prev)
+    dists = []
+    for c in curr:
+        row = []
+        for p in prev:
+            row.append(distance.cosine(c, p))
+        dists.append(row)
+    # print (dists)
+    cost, x, y = lap.lapjv(np.array(dists), extend_cost=True)
+    print (cost)
+    print (x)
+    print (y)
+    A = np.zeros_like(dists)
+    for i in range(A.shape[0]):
+        A[i, x[i]] = 1
+    print (A)
