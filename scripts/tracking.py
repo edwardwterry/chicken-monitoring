@@ -15,6 +15,7 @@ import datetime
 from sensor_msgs.msg import Image
 from sort import * 
 from deep_sort import nn_matching
+from deep_sort import iou_matching
 from deep_sort.detection import Detection
 from deep_sort.tracker import Tracker
 from matplotlib import pyplot as plt
@@ -26,7 +27,7 @@ import lap
 br = CvBridge()
 np.set_printoptions(precision=3)
 
-max_cosine_distance = 0.2
+max_cosine_distance = 0.8
 nn_budget = 100
 
 class Utils():
@@ -193,22 +194,23 @@ class Tracking():
         self.dets[image_type] = []
         self.masks[image_type].fill(0) # reset bounding box mask
         self.im = br.imgmsg_to_cv2(msg.detections[0].source_img) # save the color image corresponding to this detection
-        res = extract_features(msg.detections[0].source_img, msg)
+        f = extract_features(msg.detections[0].source_img, msg)
         # print(res.features)
-        features = np.reshape(res.features.data, (res.features.layout.dim[0].size, res.features.layout.dim[0].stride))
+        features = np.reshape(f.features.data, (f.features.layout.dim[0].size, f.features.layout.dim[0].stride))
         detection_list = self.create_detection_list(msg.detections, features, image_type, msg.header.stamp)
         # print(features)
-        # for det in msg.detections: # each bounding box
-        #     if image_type == 'thermal':
-        #         # convert it into color coordinates if from thermal
-        #         det.bbox = self.extr_map.map(det.bbox, Utils.timestamp_to_date(msg.header.stamp))
-        #     tlbr = Utils.xywh2tlbr([det.bbox.center.x, det.bbox.center.y, det.bbox.size_x, det.bbox.size_y])
-        #     tlbr = [int(x) for x in tlbr]
-        #     self.add_to_mask(tlbr[0], tlbr[1], tlbr[2], tlbr[3], image_type)
-        #     det = np.array([tlbr[0], tlbr[1], tlbr[2], tlbr[3], det.results[0].score])
-            # self.dets[image_type].append(det)
+        for det in msg.detections: # each bounding box
+            if image_type == 'thermal':
+                # convert it into color coordinates if from thermal
+                det.bbox = self.extr_map.map(det.bbox, Utils.timestamp_to_date(msg.header.stamp))
+            tlbr = Utils.xywh2tlbr([det.bbox.center.x, det.bbox.center.y, det.bbox.size_x, det.bbox.size_y])
+            tlbr = [int(x) for x in tlbr]
+            self.add_to_mask(tlbr[0], tlbr[1], tlbr[2], tlbr[3], image_type)
+            det = np.array([tlbr[0], tlbr[1], tlbr[2], tlbr[3], det.results[0].score])
+            self.dets[image_type].append(det)
         # matched, unmatched_color, unmatched_thermal = associate_detections_to_trackers(self.dets['color'], self.dets['thermal'], iou_threshold=0.3)
         # Update tracker.
+        # if image_type == 'color':
         self.tracker.predict()
         self.tracker.update(detection_list)
         print([x.mean for x in self.tracker.tracks])
@@ -219,8 +221,18 @@ class Tracking():
 
         # self.print_state(image_type, msg.header.stamp)
 
+    def match_color_thermal_bb(self):
+        if self.dets['color'] and self.dets['thermal']:
+            for c in self.dets['color']:
+                # convert to x, y (top left), width, height
+                color = np.array([c[0], c[1], c[2] - c[0], c[3] - c[1]])
+                t = self.dets['thermal'][:, :4]
+                thermal = np.array([t[:, 0], t[:, 1], t[:, 2] - t[:, 0], t[:, 3] - t[:, 1]])
+                iou = iou(color, thermal)
+
     def publish_track_im(self):
         im = self.im.copy()
+        im[np.where(self.masks['color'] == 255)] = 180
         for trk in self.tracker.tracks:
             tlbr = Utils.xyah2tlbr(trk.mean[0:4])
             tlbr = [int(x) for x in tlbr]

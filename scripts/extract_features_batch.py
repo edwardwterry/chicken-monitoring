@@ -11,7 +11,7 @@ import numpy as np
 from scipy.spatial import distance
 import lap
 path = '/home/ed/Data/frames/'
-dirs = {'images': 'images', 'labels': 'labels'}
+dirs = {'images': 'images', 'labels': 'labels', 'batch_frames': 'batch_frames'}
 image_type = 'color'
 seq = 'seq09'
 
@@ -130,7 +130,7 @@ for i in range(len(frames) - 1):
         for p in prev:
             row.append(distance.cosine(c, p))
         dists.append(row)
-    # print (dists)
+    print (dists)
     cost, x, y = lap.lapjv(np.array(dists), extend_cost=True)
     print (cost)
     print (x)
@@ -139,3 +139,4 @@ for i in range(len(frames) - 1):
     for i in range(A.shape[0]):
         A[i, x[i]] = 1
     print (A)
+    

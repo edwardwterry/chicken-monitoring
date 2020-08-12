@@ -122,7 +122,7 @@ def extract_features(im, dets):
         with torch.no_grad():
             t = time.time()
             output = model_feat(seg)
-            print('Inference is running at', 1.0/(time.time() - t), 'FPS')
+            # print('Inference is running at', 1.0/(time.time() - t), 'FPS')
             f = output.data.cpu().numpy()
             features.append(f)
     features = np.array(features).flatten()
