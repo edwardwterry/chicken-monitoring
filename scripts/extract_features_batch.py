@@ -1,3 +1,4 @@
+import argparse
 import os
 import cv2
 from PIL import Image
@@ -10,6 +11,7 @@ from sklearn.preprocessing import normalize
 import numpy as np
 from scipy.spatial import distance
 import lap
+import pickle
 path = '/home/ed/Data/frames/'
 dirs = {'images': 'images', 'labels': 'labels', 'batch_frames': 'batch_frames'}
 image_type = 'color'
@@ -18,6 +20,11 @@ seq = 'seq09'
 np.set_printoptions(precision=3)
 
 frames = {}
+
+# parser = argparse.ArgumentParser()
+# parser.add_argument("run_model", help="echo the string you use here")
+# args = parser.parse_args()
+# print(args.run_model)
 
 class ConvNet(nn.Module):
     def __init__(self):
@@ -116,27 +123,6 @@ for root, dirs, files in os.walk(images_src):
                         features.update({track_id: f})
             frames.append(features)
 
-# print(frames)
-
-for i in range(len(frames) - 1):
-    print ('Comparison', i)
-    curr = np.array([frames[i+1][x] for x in frames[i+1]])
-    prev = np.array([frames[i][x] for x in frames[i]])
-    curr = np.squeeze(curr)
-    prev = np.squeeze(prev)
-    dists = []
-    for c in curr:
-        row = []
-        for p in prev:
-            row.append(distance.cosine(c, p))
-        dists.append(row)
-    print (dists)
-    cost, x, y = lap.lapjv(np.array(dists), extend_cost=True)
-    print (cost)
-    print (x)
-    print (y)
-    A = np.zeros_like(dists)
-    for i in range(A.shape[0]):
-        A[i, x[i]] = 1
-    print (A)
-    
+# Save the feature vectors
+with open('/home/ed/Data/pickle/' + seq + '_features.pkl', 'wb') as f:
+    pickle.dump(frames, f)
