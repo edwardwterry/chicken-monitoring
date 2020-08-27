@@ -1,0 +1,11 @@
+image_type: color/ # must have / at end
+split:
+  train: [seq02, seq06, seq08]
+  test: [seq03, seq05, seq09, seq10]
+read_path: /home/ed/Data/frames/
+write_path: /home/ed/Data/frames/upload/
+images_path: images/
+labels_path: labels/
+aws_prefix: data/
+classes: [chicken]
+classes_file: classes.names
