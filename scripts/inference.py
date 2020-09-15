@@ -68,6 +68,18 @@ class Detection():
             self.models[image_type].eval()
             # print("here is", image_type, '\n', self.models[image_type])
             rospy.loginfo('Model preparation complete!')
+            if image_type == 'color':
+                dummy = Image.new('RGB', (32, 32))
+            else: 
+                dummy = Image.new('1', (32, 32))
+            print('Running dummy input to prime inference')
+            transform = transforms.Compose([transforms.ToTensor(),
+                            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])        
+            dummy = transform(dummy)
+            dummy = dummy.unsqueeze(0).to(device)
+            with torch.no_grad():
+                self.models[image_type](dummy)
+            print('Model priming complete!')
 
     def overlay_bb(self, im, x1, y1, x2, y2, conf):
         return cv2.rectangle(im, (x1, y1), (x2, y2), (255 * conf, 0, 0), 3)
