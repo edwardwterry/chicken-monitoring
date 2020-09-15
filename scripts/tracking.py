@@ -213,7 +213,7 @@ class Tracking():
         # if image_type == 'color':
         self.tracker.predict()
         self.tracker.update(detection_list)
-        print([x.mean for x in self.tracker.tracks])
+        # print([x.mean for x in self.tracker.tracks])
         self.publish_track_im()
         # print (matched, unmatched_color, unmatched_thermal)
         # associated = self.associate_color_thermal()
@@ -233,10 +233,12 @@ class Tracking():
     def publish_track_im(self):
         im = self.im.copy()
         im[np.where(self.masks['color'] == 255)] = 180
+        msg_det_only = br.cv2_to_imgmsg(im, encoding='bgr8')
+        self.color_det_bb_pub.publish(msg_det_only)        
         for trk in self.tracker.tracks:
             tlbr = Utils.xyah2tlbr(trk.mean[0:4])
             tlbr = [int(x) for x in tlbr]
-            print(tlbr)
+            # print(tlbr)
             im = self.overlay_bb_trk(im, tlbr[0], tlbr[1], tlbr[2], tlbr[3], trk.track_id)
         # Convert back and publish
         msg = br.cv2_to_imgmsg(im, encoding='bgr8')
@@ -254,13 +256,14 @@ class Tracking():
         self.add_to_mask(fov[0], fov[1], fov[2], fov[3], 'thermal_fov')
 
     def publish_det_only_image(self):
-        # https://stackoverflow.com/questions/51168268/setting-pixels-values-in-opencv-python        
-        self.im_det_only = copy.deepcopy(self.orig)
-        self.im_det_only[np.where(self.masks['color'] == 255)] = 180
-        self.im_det_only[np.where(self.masks['thermal'] == 255)] = 30
-        self.im_det_only[np.where(self.masks['thermal_fov'] == 255)] = 255
-        msg_det_only = br.cv2_to_imgmsg(self.im_det_only, encoding='bgr8')
-        self.color_det_bb_pub.publish(msg_det_only)
+        if self.orig:
+            # https://stackoverflow.com/questions/51168268/setting-pixels-values-in-opencv-python        
+            self.im_det_only = copy.deepcopy(self.orig)
+            self.im_det_only[np.where(self.masks['color'] == 255)] = 180
+            self.im_det_only[np.where(self.masks['thermal'] == 255)] = 30
+            self.im_det_only[np.where(self.masks['thermal_fov'] == 255)] = 255
+            msg_det_only = br.cv2_to_imgmsg(self.im_det_only, encoding='bgr8')
+            self.color_det_bb_pub.publish(msg_det_only)
 
 def main():
     rospy.init_node('mot_tracker', anonymous=True)
