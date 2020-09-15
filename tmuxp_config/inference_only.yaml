@@ -1,0 +1,23 @@
+session_name: chicken-monitoring
+environment:
+  BAGFILE_PATH: /home/ed/Data/frames/rosbag/
+  BAGFILE: seq05
+  IMAGE_TYPE: color
+windows:
+  - window_name: chicken-monitoring
+    layout: tiled
+    shell_command_before: 
+      - cd ${BAGFILE_PATH}
+      - rosparam set use_sim_time true
+    panes:
+      - shell_command:
+        - sleep 10
+        - rosbag play ${BAGFILE}.bag --clock -r 0.5 --pause
+      - shell_command:
+        - sleep 4
+        - dl
+        - cvb
+        - roslaunch chicken_monitoring inference.launch
+      - shell_command:
+        - sleep 5
+        - rosbag record color_det -O ${BAGFILE}_det_${IMAGE_TYPE}.bag
