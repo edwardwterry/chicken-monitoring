@@ -70,11 +70,13 @@ class Detection():
             rospy.loginfo('Model preparation complete!')
             if image_type == 'color':
                 dummy = Image.new('RGB', (32, 32))
+                transform = transforms.Compose([transforms.ToTensor(),
+                            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
             else: 
                 dummy = Image.new('1', (32, 32))
+                transform = transforms.Compose([transforms.ToTensor(),
+                            transforms.Normalize((0.5), (0.5))])
             print('Running dummy input to prime inference')
-            transform = transforms.Compose([transforms.ToTensor(),
-                            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])        
             dummy = transform(dummy)
             dummy = dummy.unsqueeze(0).to(device)
             with torch.no_grad():

@@ -1,7 +1,8 @@
-model_color: '/home/ed/PyTorch-YOLOv3/config/yolov3-tiny.cfg'
+model_color: '/home/ed/PyTorch-YOLOv3/config/yolov3-tiny-color.cfg'
 model_thermal: '/home/ed/PyTorch-YOLOv3/config/yolov3-tiny-therm.cfg'
-weights_color: '/home/ed/PyTorch-YOLOv3/weights/yolov3_ckpt_35.pth'
-weights_thermal: '/home/ed/PyTorch-YOLOv3/weights/yolov3_ckpt_55.pth'
+weights_color: '/home/ed/PyTorch-YOLOv3/weights/0906_1337_color_yolov3_ckpt_44.pth'
+weights_thermal: '/home/ed/PyTorch-YOLOv3/weights/0915_1958_thermal_yolov3_ckpt_42.pth'
+# weights_thermal: '/home/ed/PyTorch-YOLOv3/weights/yolov3_ckpt_55.pth'
 img_size_color: 416
 img_size_thermal: 416
 conf_thresh: 0.3
@@ -9,5 +10,5 @@ nms_thresh: 0.2
 batch_size: 1
 n_cpu: 0
 to_run:
-  color: False
-  thermal: True 
+  color: True
+  thermal: False
