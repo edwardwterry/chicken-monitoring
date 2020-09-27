@@ -21,6 +21,7 @@ from deep_sort.tracker import Tracker
 from matplotlib import pyplot as plt
 from chicken_monitoring.srv import ExtractFeatures
 from extract_features import extract_features 
+from message_filters import Subscriber, ApproximateTimeSynchronizer
 import copy
 import lap
 
@@ -123,7 +124,11 @@ class Tracking():
         self.color_det_bb_pub = rospy.Publisher('color_bb_det', Image, queue_size=1)
         # self.color_sub = rospy.Subscriber('color', Image, self.im_clbk)
         # self.thermal_det_mapped_sub = rospy.Subscriber('thermal_det', Detection2DArray, self.det_clbk)
-        self.color_det_sub = rospy.Subscriber('color_det', Detection2DArray, self.det_clbk)
+        # self.color_det_sub = rospy.Subscriber('color_det', Detection2DArray, self.det_clbk)
+        self.mf_color_sub = Subscriber('color_det', Detection2DArray)
+        self.mf_thermal_sub = Subscriber('thermal_det_mapped', Detection2DArray)
+        self.ts = ApproximateTimeSynchronizer([self.mf_color_sub, self.mf_thermal_sub], 10, 0.1)
+        self.ts.registerCallback(self.sync_clbk)
         self.im = None
         self.im_det_only = None
         self.mot_tracker = Sort(max_age=3, min_hits=1)
@@ -149,6 +154,9 @@ class Tracking():
         self.tracker = Tracker(metric)
 
         print('Node initialization complete!')
+
+    def sync_clbk(self, color, thermal):
+        print (color.header, thermal.header)
 
     def overlay_bb_trk(self, im, x1, y1, x2, y2, id):
         color = Utils.hex2rgb(self.color_cycle[id % len(self.color_cycle)])
