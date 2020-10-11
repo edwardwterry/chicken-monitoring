@@ -1,10 +1,10 @@
 session_name: chicken-monitoring
 environment:
   BAGFILE_PATH: /home/ed/Data/frames/rosbag/
-  VIDEO_BAGFILE: seq09
+  VIDEO_BAGFILE: seq05_high_rate
   COLOR_DET_SUFFIX: _det_color
   THERMAL_DET_SUFFIX: _det_thermal
-  RATE: '1.0'
+  RATE: '0.2'
 windows:
   - window_name: chicken-monitoring
     layout: tiled
@@ -17,8 +17,13 @@ windows:
         - sleep 10
         - rosbag play ${VIDEO_BAGFILE}.bag 
                       ${VIDEO_BAGFILE}${COLOR_DET_SUFFIX}.bag 
-                      ${VIDEO_BAGFILE}${THERMAL_DET_SUFFIX}.bag --clock --pause -r ${RATE}
+                      --clock --pause -r ${RATE}
         focus: true
+        #- shell_command:
+        #- sleep 5
+        #- roslaunch chicken_monitoring map_color_therm.launch
+      - shell_command:
+        - rosrun topic_tools relay color/camera/image_rect_color color
       - shell_command:
         - sleep 5
         - roslaunch chicken_monitoring rqt.launch perspective:=color_bb_all
@@ -27,4 +32,5 @@ windows:
         - dl
         - cvb
         - roslaunch chicken_monitoring tracking.launch
-      - clear
+          #- clear
+          #- clear

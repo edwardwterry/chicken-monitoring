@@ -1,7 +1,7 @@
 session_name: chicken-monitoring
 environment:
   BAGFILE_PATH: /home/ed/Data/frames/rosbag/
-  BAGFILE: seq05
+  BAGFILE: seq10_high_rate
   IMAGE_TYPE: color
 windows:
   - window_name: chicken-monitoring
@@ -12,7 +12,10 @@ windows:
     panes:
       - shell_command:
         - sleep 10
-        - rosbag play ${BAGFILE}.bag --clock -r 0.5 --pause
+        - rosbag play ${BAGFILE}.bag --clock -r 0.25 --pause
+      - shell_command:
+        - sleep 2
+        - rosrun topic_tools relay color/camera/image_rect_color color
       - shell_command:
         - sleep 4
         - dl
@@ -20,4 +23,4 @@ windows:
         - roslaunch chicken_monitoring inference.launch
       - shell_command:
         - sleep 5
-        - rosbag record color_det -O ${BAGFILE}_det_${IMAGE_TYPE}.bag
+        - rosbag record ${IMAGE_TYPE}_det -O ${BAGFILE}_det_${IMAGE_TYPE}.bag

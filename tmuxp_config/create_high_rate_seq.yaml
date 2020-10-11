@@ -1,0 +1,36 @@
+session_name: chicken-monitoring
+environment:
+  BAGFILE_PATH: /home/ed/Data/2020-07-02-09-27-00_test
+  OUT_PATH: /home/ed/Data/frames/rosbag
+  START_DELAY: '777.0'
+  RATE: '0.25'
+  DURATION: '57.0'
+  SEQ_ID: seq10
+windows:
+  - window_name: chicken-monitoring
+    layout: tiled
+    shell_command_before: 
+      - cd ${BAGFILE_PATH}
+      - rosparam set use_sim_time true
+    panes:
+      - shell_command:
+        - sleep 10
+        - rosbag play *.bag -s ${START_DELAY} -r ${RATE} -u ${DURATION} --clock
+      - shell_command:
+        - sleep 5
+        - roscd jetson_csi_cam/src
+        - chmod +x publish_camera_info.py
+        - roslaunch jetson_csi_cam publish_camera_info.launch
+      - shell_command:
+        - sleep 5
+        - roslaunch chicken_monitoring decompress.launch rect:=true
+      - shell_command:
+        - sleep 5
+        - roslaunch chicken_monitoring rectify_color.launch
+      - shell_command:
+        - sleep 5
+        - rosrun topic_tools relay color/camera/image_rect_color_throttle color/camera/image_rect_color
+      - shell_command:
+        - sleep 5
+        - cd ${OUT_PATH}
+        - rosbag record color/camera/image_rect_color thermal/camera/image_raw_throttle -O ${SEQ_ID}_high_rate.bag

@@ -101,11 +101,11 @@ class Detection():
         if self.to_run['color']:
             # https://stackoverflow.com/questions/43232813/convert-opencv-image-format-to-pil-image-format
             im_pil = self.to_pil(im)
-            print('pil', im_pil.mode, im_pil.size)
+            # print('pil', im_pil.mode, im_pil.size)
             im_pil = transforms.ToTensor()(im_pil.convert('RGB'))
             im_pil, _ = pad_to_square(im_pil, 0)
             im_pil = resize(im_pil, self.img_size['color'])
-            print('pil', im_pil.mode, im_pil.size)
+            # print('pil', im_pil.mode, im_pil.size)
             im_pil = im_pil.unsqueeze_(0)
             input = Variable(im_pil) #.type(Tensor))
             input = input.to(device)
@@ -140,7 +140,7 @@ class Detection():
                     det.bbox.center.y = xywh[1]
                     det.bbox.size_x = xywh[2]
                     det.bbox.size_y = xywh[3]
-                    det.source_img = msg
+                    # det.source_img = msg
                     det_msg.detections.append(det)
                             
                     im = self.overlay_bb(im, x1, y1, x2, y2, conf)
@@ -167,7 +167,7 @@ class Detection():
             with torch.no_grad():
                 rospy.loginfo('Running thermal inference!')
                 detections = self.models['thermal'](input)
-                print(detections)
+                # print(detections)
                 detections = non_max_suppression(detections, self.conf_thresh, self.nms_thresh)
                 detections = detections[0]
             im = cv2.cvtColor(im, cv2.COLOR_GRAY2RGB) # back to color
@@ -198,8 +198,9 @@ class Detection():
                     det.bbox.center.y = xywh[1]
                     det.bbox.size_x = xywh[2]
                     det.bbox.size_y = xywh[3]
-                    if self.curr_color is not None:
-                        det.source_img = self.curr_color
+                    print(det.bbox)
+                    # if self.curr_color is not None:
+                    #     det.source_img = self.curr_color
                     det_msg.detections.append(det)
 
                     # Overlay on the image
