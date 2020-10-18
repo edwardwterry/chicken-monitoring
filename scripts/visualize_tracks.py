@@ -120,6 +120,12 @@ def trim(orig_center, orig_distance):
     else:
         return orig_center, orig_distance
 
+def overlay_bb_trk(im, x1, y1, x2, y2, id):
+    color = hex2rgb(color_cycle[id % len(color_cycle)])
+    im = cv2.putText(im, str(id), (x1 + 5, y2 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
+    im = cv2.rectangle(im, (x1, y1), (x2, y2), color, 4)
+    return im
+
 # Open image
 # print(os.walk(os.path.join(in_image_path, seq)))
 frames = []
@@ -133,30 +139,34 @@ for root, dirs, files in os.walk(os.path.join(in_image_path, seq), topdown=False
             im_h, im_w, _ = im.shape
             file_txt = replace_suffix(f, '.txt')
             # print(os.path.join(root, file_txt))
-            try:
-                with open(os.path.join(os.path.join(annotation_path, seq + trk_suffix), file_txt), 'r') as myfile:
-                    arr = []
-                    for line in myfile.readlines():
-                        # print(line)
-                        x, y, w, h = [float(x) for x in line.split(' ')[1:5]]
-                        x_new, w_new = trim(x, w)
-                        y_new, h_new = trim(y, h)
-                        tlbr = xywh2tlbr(x_new, y_new, w_new, h_new)
-                        index = int(line.split(' ')[5])
-                        crop = im[int(im_h * tlbr[1]):int(im_h * tlbr[3]), int(im_w * tlbr[0]):int(im_w * tlbr[2])]
-                        crop = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
-                        crop_pil = Image.fromarray(crop)
-                        crop_pil = crop_pil.resize((32, 32))
-                        crop_pil = tf(crop_pil)
-                        crop_pil = crop_pil.unsqueeze(0).to(device)
-                        with torch.no_grad():
-                            output = model_feat(crop_pil)
-                            f = normalize(output.data.cpu().numpy())    
-                            features.append(f)  
-            except Exception as e:
-                print(e)
-                print(os.path.join(root, file_txt))
-        frames.append(features)    
+            # try:
+            with open(os.path.join(os.path.join(annotation_path, seq + trk_suffix), file_txt), 'r') as myfile:
+                arr = []
+                for line in myfile.readlines():
+                    # print(line)
+                    x, y, w, h = [float(x) for x in line.split(' ')[1:5]]
+                    x_new, w_new = trim(x, w)
+                    y_new, h_new = trim(y, h)
+                    tlbr = xywh2tlbr(x_new, y_new, w_new, h_new)
+                    index = int(line.split(' ')[5])
+                    im = overlay_bb_trk(im, int(im_w*tlbr[0]), int(im_h*tlbr[1]), int(im_w*tlbr[2]), int(im_h*tlbr[3]), index)
+                    crop = im[int(im_h * tlbr[1]):int(im_h * tlbr[3]), int(im_w * tlbr[0]):int(im_w * tlbr[2])]
+                    crop = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
+                    crop_pil = Image.fromarray(crop)
+                    crop_pil = crop_pil.resize((32, 32))
+                    crop_pil = tf(crop_pil)
+                    crop_pil = crop_pil.unsqueeze(0).to(device)
+                    with torch.no_grad():
+                        output = model_feat(crop_pil)
+                        f = normalize(output.data.cpu().numpy())    
+                        features.append(f)  
+            # except Exception as e:
+            #     print(e)
+            #     print(os.path.join(root, file_txt))
+        frames.append(features)
+        cv2.imshow('window', im)
+        if cv2.waitKey(0) == 57:
+            cv2.destroyWindow('window')
 
 for i in range(len(frames) - 1):
     curr = np.array([x for x in frames[i+1]])
