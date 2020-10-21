@@ -137,7 +137,7 @@ count = 0
 for root, dirs, files in os.walk(os.path.join(in_image_path, seq), topdown=False):
     files = sorted(files)
     for f in files:
-        if count < 5:
+        if count < 10000:
             features = {}
             if f.endswith('.jpg'):
                 # Find corresponding track annotation file
@@ -179,7 +179,7 @@ for root, dirs, files in os.walk(os.path.join(in_image_path, seq), topdown=False
 # TODO plot GT on the plots
 
 
-for i in range(len(frames) - 1):
+for i in range(84, 86): #len(frames) - 1):
     fig, axs = plt.subplots(2, 2, figsize=(12,12))
     axs[0,0].imshow(images[i])
     axs[0,0].set_title('Previous image\n' + filenames[i])
@@ -237,18 +237,22 @@ for i in range(len(frames) - 1):
     # trk_id = [eucl_prev_ind[x] for x in t]
     # det_id = [eucl_curr_ind[x] for x in d]
     for j, elm in enumerate(x): # going through the rows
-        if not elm == -1:
+        if not elm == -1: # i.e. if there was a match
             pair = eucl_indices[j][elm]
             if pair[0] == pair[1]:
                 axs[1,1].scatter(pair[0], pair[1], c='g', marker='o')
             else:
-                axs[1,1].scatter(pair[0], pair[1], c='r', marker='x')
+                axs[1,1].scatter(pair[0], pair[1], c='r', marker='x') # TODO test and apply to feats too!
     axs[1,1].matshow(eucl_dists, cmap='inferno_r')
     axs[1,1].set_title('Box center Euclidean distance confusion matrix')
-    axs[1,1].set_ylabel('Incoming detections')
     axs[1,1].set_xlabel('Existing tracks')
-    axs[1,1].set_xticklabels(x)
-    axs[1,1].set_yticklabels(y)
+    axs[1,1].set_xticks(range(len(eucl_prev.keys()))) # Fix up this indexing too
+    print('[k for k in eucl_prev.keys()]', [k for k in eucl_prev.keys()])
+    axs[1,1].set_xticklabels([k for k in eucl_prev.keys()]) # Fix up this indexing too
+    axs[1,1].set_ylabel('Incoming detections')
+    axs[1,1].set_yticks(range(len(eucl_curr.keys()))) # Fix up this indexing too
+    print('[k for k in eucl_curr.keys()]', [k for k in eucl_curr.keys()])
+    axs[1,1].set_yticklabels([k for k in eucl_curr.keys()]) # Fix up this indexing too
 
     fig.suptitle(seq)
     print('Writing to', os.path.join(os.path.join(out_path, seq), filenames[i] + '.png'))
