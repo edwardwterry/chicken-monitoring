@@ -24,7 +24,7 @@ br = CvBridge()
 # Paths
 seq = 'seq05'
 in_image_path = '/home/ed/Data/frames/images/color'
-out_image_path = '/home/ed/Data/frames/tracks/color'
+out_path = '/home/ed/Data/frames/tracks/color'
 annotation_path = '/home/ed/Data/frames/labels/color'
 trk_suffix = '_trk'
 
@@ -129,71 +129,130 @@ def overlay_bb_trk(im, x1, y1, x2, y2, id):
 # Open image
 # print(os.walk(os.path.join(in_image_path, seq)))
 frames = []
+images = []
+crops = []
+centers = []
+filenames = []
+count = 0
 for root, dirs, files in os.walk(os.path.join(in_image_path, seq), topdown=False):
     files = sorted(files)
     for f in files:
-        features = []
-        if f.endswith('.jpg'):
-            # Find corresponding track annotation file
-            im = cv2.imread(os.path.join(root, f))
-            im_h, im_w, _ = im.shape
-            file_txt = replace_suffix(f, '.txt')
-            # print(os.path.join(root, file_txt))
-            # try:
-            with open(os.path.join(os.path.join(annotation_path, seq + trk_suffix), file_txt), 'r') as myfile:
-                arr = []
-                for line in myfile.readlines():
-                    # print(line)
-                    x, y, w, h = [float(x) for x in line.split(' ')[1:5]]
-                    x_new, w_new = trim(x, w)
-                    y_new, h_new = trim(y, h)
-                    tlbr = xywh2tlbr(x_new, y_new, w_new, h_new)
-                    index = int(line.split(' ')[5])
-                    im = overlay_bb_trk(im, int(im_w*tlbr[0]), int(im_h*tlbr[1]), int(im_w*tlbr[2]), int(im_h*tlbr[3]), index)
-                    crop = im[int(im_h * tlbr[1]):int(im_h * tlbr[3]), int(im_w * tlbr[0]):int(im_w * tlbr[2])]
-                    crop = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
-                    crop_pil = Image.fromarray(crop)
-                    crop_pil = crop_pil.resize((32, 32))
-                    crop_pil = tf(crop_pil)
-                    crop_pil = crop_pil.unsqueeze(0).to(device)
-                    with torch.no_grad():
-                        output = model_feat(crop_pil)
-                        f = normalize(output.data.cpu().numpy())    
-                        features.append(f)  
-            # except Exception as e:
-            #     print(e)
-            #     print(os.path.join(root, file_txt))
-        frames.append(features)
-        cv2.imshow('window', im)
-        if cv2.waitKey(0) == 57:
-            cv2.destroyWindow('window')
+        if count < 5:
+            features = {}
+            if f.endswith('.jpg'):
+                # Find corresponding track annotation file
+                im = cv2.imread(os.path.join(root, f))
+                im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
+                im_h, im_w, _ = im.shape
+                file_txt = replace_suffix(f, '.txt')
+                print(os.path.join(root, file_txt))
+                # try:
+                with open(os.path.join(os.path.join(annotation_path, seq + trk_suffix), file_txt), 'r') as myfile:
+                    cs = {}
+                    for line in myfile.readlines():
+                        # print(line)
+                        x, y, w, h = [float(x) for x in line.split(' ')[1:5]]
+                        index = int(line.split(' ')[5])
+                        x_new, w_new = trim(x, w)
+                        y_new, h_new = trim(y, h)
+                        cs[index] = [x_new, y_new]
+                        tlbr = xywh2tlbr(x_new, y_new, w_new, h_new)
+                        im = overlay_bb_trk(im, int(im_w*tlbr[0]), int(im_h*tlbr[1]), int(im_w*tlbr[2]), int(im_h*tlbr[3]), index)
+                        crop = im[int(im_h * tlbr[1]):int(im_h * tlbr[3]), int(im_w * tlbr[0]):int(im_w * tlbr[2])]
+                        crop_pil = Image.fromarray(crop)
+                        crop_pil = crop_pil.resize((32, 32))
+                        crop_pil = tf(crop_pil)
+                        crop_pil = crop_pil.unsqueeze(0).to(device)
+                        with torch.no_grad():
+                            output = model_feat(crop_pil)
+                            f = normalize(output.data.cpu().numpy())    
+                            features[index] = f
+                # except Exception as e:
+                #     print(e)
+                #     print(os.path.join(root, file_txt))
+            frames.append(features)
+            centers.append(cs)
+            images.append(im)
+            filenames.append(file_txt.split('.')[0])
+            count += 1
+
+# TODO plot GT on the plots
+
 
 for i in range(len(frames) - 1):
-    curr = np.array([x for x in frames[i+1]])
-    # print(curr[0])
-    prev = np.array([x for x in frames[i]])
-    curr = np.squeeze(curr)
-    prev = np.squeeze(prev)
-    dists = []
-    for c in curr:
-        row = []
-        for p in prev:
-            row.append(distance.cosine(c, p))
-        dists.append(row)
-    cost, x, y = lap.lapjv(np.array(dists), extend_cost=True)
-    A = np.zeros_like(dists)
-    for i in range(A.shape[0]):
-        A[i, x[i]] = 1
-    plt.matshow(dists, cmap='inferno_r')
-    plt.show()
+    fig, axs = plt.subplots(2, 2, figsize=(12,12))
+    axs[0,0].imshow(images[i])
+    axs[0,0].set_title('Previous image\n' + filenames[i])
 
+    axs[0,1].imshow(images[i+1])
+    axs[0,1].set_title('Current image\n' + filenames[i+1])
 
+    # feats_curr = np.array([x for x in frames[i+1]])
+    # feats_prev = np.array([x for x in frames[i]])
+    # feats_curr = np.squeeze(feats_curr)
+    # feats_prev = np.squeeze(feats_prev)
+    # feat_dists = []
+    # for kc, vc in feats_curr.items():
+    #     row = []
+    #     for kp, vp in feats_prev.items():
+    #         row.append(distance.cosine(vc, vp))
+    #     feat_dists.append(row)
 
-# Save them
+    # cost, trk_id, det_id = lap.lapjv(np.array(feat_dists), extend_cost=True)
+    # A = np.zeros_like(feat_dists)
+    # for j in range(A.shape[0]):
+    #     if j == trk_id[j]:
+    #         axs[1,0].scatter(j, trk_id[j], c='g', marker='o')
+    #     else:
+    #         axs[1,0].scatter(j, trk_id[j], c='r', marker='x')
 
-# Calculate the appearance metric cost matrix
-cost_matrix = None
-# Overlay track ID on the original image to debug
+    # axs[1,0].matshow(feat_dists, cmap='inferno_r')
+    # axs[1,0].set_title('Feature vector cosine distance confusion matrix')
+    # axs[1,0].set_ylabel('Incoming detections')
+    # axs[1,0].set_xlabel('Existing tracks')    
+    # axs[1,0].set_xticklabels(det_id)
+    # axs[1,0].set_yticklabels(trk_id)
+    eucl_curr = centers[i+1] #np.array([x for x in centers[i+1]])
+    eucl_prev = centers[i] # np.array([x for x in centers[i]])
+    # eucl_curr = np.squeeze(eucl_curr)
+    # eucl_prev = np.squeeze(eucl_prev)
+    eucl_dists = []
+    eucl_indices = []
+    for kc, vc in eucl_curr.items():
+        dist_row = []
+        index_row = []
+        for kp, vp in eucl_prev.items():
+            dist_row.append(distance.euclidean(vp, vc))
+            index_row.append((kp, kc))
+        eucl_dists.append(dist_row)
+        eucl_indices.append(index_row)
+   
+    eucl_dists = np.asarray(eucl_dists)
+    eucl_dists = eucl_dists / np.linalg.norm(eucl_dists)
+    print ('e dist', eucl_dists)
+    print ('e ind', eucl_indices)
+    cost, x, y = lap.lapjv(np.array(eucl_dists), extend_cost=True)
+    print ('x', x)
+    print ('y', y)
+    # trk_id = [eucl_prev_ind[x] for x in t]
+    # det_id = [eucl_curr_ind[x] for x in d]
+    for j, elm in enumerate(x): # going through the rows
+        if not elm == -1:
+            pair = eucl_indices[j][elm]
+            if pair[0] == pair[1]:
+                axs[1,1].scatter(pair[0], pair[1], c='g', marker='o')
+            else:
+                axs[1,1].scatter(pair[0], pair[1], c='r', marker='x')
+    axs[1,1].matshow(eucl_dists, cmap='inferno_r')
+    axs[1,1].set_title('Box center Euclidean distance confusion matrix')
+    axs[1,1].set_ylabel('Incoming detections')
+    axs[1,1].set_xlabel('Existing tracks')
+    axs[1,1].set_xticklabels(x)
+    axs[1,1].set_yticklabels(y)
 
-# how to visualize the cost matrix neatly? 
-# plt.matshow(cost_matrix)
+    fig.suptitle(seq)
+    print('Writing to', os.path.join(os.path.join(out_path, seq), filenames[i] + '.png'))
+
+    plt.savefig(os.path.join(os.path.join(out_path, seq), filenames[i] + '.png'))
+    plt.close()
+    # plt.show()
