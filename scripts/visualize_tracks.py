@@ -21,6 +21,10 @@ import lap
 # Set stuff up
 br = CvBridge()
 
+# Corruption
+dropout_rate = 0.2 # fraction of dropped detections
+jitter = 1.0 # 0.0 or 1.0
+
 # Paths
 seq = 'seq05'
 in_image_path = '/home/ed/Data/frames/images/color'
@@ -29,6 +33,7 @@ annotation_path = '/home/ed/Data/frames/labels/color'
 trk_suffix = '_trk'
 
 color_cycle = plt.rcParams['axes.prop_cycle'].by_key()['color']
+det_dropout_rate = 0.3
 
 class ConvNet(nn.Module):
     def __init__(self):
@@ -126,6 +131,24 @@ def overlay_bb_trk(im, x1, y1, x2, y2, id):
     im = cv2.rectangle(im, (x1, y1), (x2, y2), color, 4)
     return im
 
+def perturb_bb(x, y, w, h):
+    x += np.random.uniform(-0.05 * jitter, 0.05 * jitter)
+    y += np.random.uniform(-0.05 * jitter, 0.05 * jitter)
+    w *= np.random.uniform(0.9 * jitter, 1.1 * jitter)
+    h *= np.random.uniform(0.9 * jitter, 1.1 * jitter)
+    if x < 0.0:
+        x = 0.0
+    elif x > 1.0:
+        x = 1.0
+    if y < 0.0:
+        y = 0.0
+    elif y > 1.0:
+        y = 1.0        
+    return x, y, w, h
+
+def included():
+    return np.random.random() >= dropout_rate
+
 # Open image
 # print(os.walk(os.path.join(in_image_path, seq)))
 frames = []
@@ -134,6 +157,8 @@ crops = []
 centers = []
 filenames = []
 count = 0
+
+
 for root, dirs, files in os.walk(os.path.join(in_image_path, seq), topdown=False):
     files = sorted(files)
     for f in files:
@@ -146,30 +171,31 @@ for root, dirs, files in os.walk(os.path.join(in_image_path, seq), topdown=False
                 im_h, im_w, _ = im.shape
                 file_txt = replace_suffix(f, '.txt')
                 print(os.path.join(root, file_txt))
-                # try:
                 with open(os.path.join(os.path.join(annotation_path, seq + trk_suffix), file_txt), 'r') as myfile:
                     cs = {}
                     for line in myfile.readlines():
-                        # print(line)
-                        x, y, w, h = [float(x) for x in line.split(' ')[1:5]]
-                        index = int(line.split(' ')[5])
-                        x_new, w_new = trim(x, w)
-                        y_new, h_new = trim(y, h)
-                        cs[index] = [x_new, y_new]
-                        tlbr = xywh2tlbr(x_new, y_new, w_new, h_new)
-                        im = overlay_bb_trk(im, int(im_w*tlbr[0]), int(im_h*tlbr[1]), int(im_w*tlbr[2]), int(im_h*tlbr[3]), index)
-                        crop = im[int(im_h * tlbr[1]):int(im_h * tlbr[3]), int(im_w * tlbr[0]):int(im_w * tlbr[2])]
-                        crop_pil = Image.fromarray(crop)
-                        crop_pil = crop_pil.resize((32, 32))
-                        crop_pil = tf(crop_pil)
-                        crop_pil = crop_pil.unsqueeze(0).to(device)
-                        with torch.no_grad():
-                            output = model_feat(crop_pil)
-                            f = normalize(output.data.cpu().numpy())    
-                            features[index] = f
-                # except Exception as e:
-                #     print(e)
-                #     print(os.path.join(root, file_txt))
+                        if included():
+                            x, y, w, h = [float(x) for x in line.split(' ')[1:5]]
+                            print ('before')
+                            print (x, y, w, h)
+                            x, y, w, h = perturb_bb(x, y, w, h)
+                            print ('after')
+                            print (x, y, w, h)
+                            index = int(line.split(' ')[5])
+                            x_new, w_new = trim(x, w)
+                            y_new, h_new = trim(y, h)
+                            cs[index] = [x_new, y_new]
+                            tlbr = xywh2tlbr(x_new, y_new, w_new, h_new)
+                            im = overlay_bb_trk(im, int(im_w*tlbr[0]), int(im_h*tlbr[1]), int(im_w*tlbr[2]), int(im_h*tlbr[3]), index)
+                            crop = im[int(im_h * tlbr[1]):int(im_h * tlbr[3]), int(im_w * tlbr[0]):int(im_w * tlbr[2])]
+                            crop_pil = Image.fromarray(crop)
+                            crop_pil = crop_pil.resize((32, 32))
+                            crop_pil = tf(crop_pil)
+                            crop_pil = crop_pil.unsqueeze(0).to(device)
+                            with torch.no_grad():
+                                output = model_feat(crop_pil)
+                                f = normalize(output.data.cpu().numpy())    
+                                features[index] = f
             frames.append(features)
             centers.append(cs)
             images.append(im)
@@ -260,8 +286,9 @@ for i in range(len(frames) - 1):
     axs[1,1].set_yticklabels([k for k in eucl_curr.keys()]) # Fix up this indexing too
 
     fig.suptitle(seq)
-    print('Writing to', os.path.join(os.path.join(out_path, seq), filenames[i] + '.png'))
+    fn = filenames[i] + 'd' + f'{dropout_rate:.03}' + '_j' + f'{jitter:.03}' 
+    print('Writing to', os.path.join(os.path.join(out_path, seq), fn + '.png'))
 
-    plt.savefig(os.path.join(os.path.join(out_path, seq), filenames[i] + '.png'))
+    plt.savefig(os.path.join(os.path.join(out_path, seq), fn + '.png'))
     plt.close()
     # plt.show()
