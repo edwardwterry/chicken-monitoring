@@ -23,7 +23,9 @@ br = CvBridge()
 
 # Corruption
 dropout_rate = 0.2 # fraction of dropped detections
-jitter = 1.0 # 0.0 or 1.0
+jitter_xy = 0.02
+jitter_wh = 0.15
+np.random.seed(0)
 
 # Paths
 seq = 'seq05'
@@ -132,10 +134,10 @@ def overlay_bb_trk(im, x1, y1, x2, y2, id):
     return im
 
 def perturb_bb(x, y, w, h):
-    x += np.random.uniform(-0.05 * jitter, 0.05 * jitter)
-    y += np.random.uniform(-0.05 * jitter, 0.05 * jitter)
-    w *= np.random.uniform(0.9 * jitter, 1.1 * jitter)
-    h *= np.random.uniform(0.9 * jitter, 1.1 * jitter)
+    x += np.random.uniform(-jitter_xy, jitter_xy)
+    y += np.random.uniform(-jitter_xy, jitter_xy)
+    w *= np.random.uniform(1.0 - jitter_wh, 1.0 + jitter_wh)
+    h *= np.random.uniform(1.0 - jitter_wh, 1.0 + jitter_wh)
     if x < 0.0:
         x = 0.0
     elif x > 1.0:
@@ -170,17 +172,17 @@ for root, dirs, files in os.walk(os.path.join(in_image_path, seq), topdown=False
                 im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
                 im_h, im_w, _ = im.shape
                 file_txt = replace_suffix(f, '.txt')
-                print(os.path.join(root, file_txt))
+                # print(os.path.join(root, file_txt))
                 with open(os.path.join(os.path.join(annotation_path, seq + trk_suffix), file_txt), 'r') as myfile:
                     cs = {}
                     for line in myfile.readlines():
                         if included():
                             x, y, w, h = [float(x) for x in line.split(' ')[1:5]]
-                            print ('before')
-                            print (x, y, w, h)
+                            # print ('before')
+                            # print (x, y, w, h)
                             x, y, w, h = perturb_bb(x, y, w, h)
-                            print ('after')
-                            print (x, y, w, h)
+                            # print ('after')
+                            # print (x, y, w, h)
                             index = int(line.split(' ')[5])
                             x_new, w_new = trim(x, w)
                             y_new, h_new = trim(y, h)
@@ -226,11 +228,11 @@ for i in range(len(frames) - 1):
         feats_dists.append(dist_row)
         feats_indices.append(index_row)
    
-    print ('f dist', feats_dists)
-    print ('f ind', feats_indices)
+    # print ('f dist', feats_dists)
+    # print ('f ind', feats_indices)
     cost, x, y = lap.lapjv(np.array(feats_dists), extend_cost=True)
-    print ('x', x)
-    print ('y', y)
+    # print ('x', x)
+    # print ('y', y)
     for j, elm in enumerate(x): # going through the rows
         if not elm == -1: # i.e. if there was a match
             pair = feats_indices[j][elm]
@@ -264,11 +266,11 @@ for i in range(len(frames) - 1):
    
     eucl_dists = np.asarray(eucl_dists)
     eucl_dists = eucl_dists / np.linalg.norm(eucl_dists)
-    print ('e dist', eucl_dists)
-    print ('e ind', eucl_indices)
+    # print ('e dist', eucl_dists)
+    # print ('e ind', eucl_indices)
     cost, x, y = lap.lapjv(np.array(eucl_dists), extend_cost=True)
-    print ('x', x)
-    print ('y', y)
+    # print ('x', x)
+    # print ('y', y)
     for j, elm in enumerate(x): # going through the rows
         if not elm == -1: # i.e. if there was a match
             pair = eucl_indices[j][elm]
@@ -286,7 +288,7 @@ for i in range(len(frames) - 1):
     axs[1,1].set_yticklabels([k for k in eucl_curr.keys()]) # Fix up this indexing too
 
     fig.suptitle(seq)
-    fn = filenames[i] + 'd' + f'{dropout_rate:.03}' + '_j' + f'{jitter:.03}' 
+    fn = filenames[i] + '_d' + f'{dropout_rate:.03}' + '_jxy' + f'{jitter_xy:.03}' + '_jwh' + f'{jitter_wh:.03}' 
     print('Writing to', os.path.join(os.path.join(out_path, seq), fn + '.png'))
 
     plt.savefig(os.path.join(os.path.join(out_path, seq), fn + '.png'))
