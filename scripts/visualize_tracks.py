@@ -179,7 +179,7 @@ for root, dirs, files in os.walk(os.path.join(in_image_path, seq), topdown=False
 # TODO plot GT on the plots
 
 
-for i in range(84, 86): #len(frames) - 1):
+for i in range(len(frames) - 1):
     fig, axs = plt.subplots(2, 2, figsize=(12,12))
     axs[0,0].imshow(images[i])
     axs[0,0].set_title('Previous image\n' + filenames[i])
@@ -187,35 +187,44 @@ for i in range(84, 86): #len(frames) - 1):
     axs[0,1].imshow(images[i+1])
     axs[0,1].set_title('Current image\n' + filenames[i+1])
 
-    # feats_curr = np.array([x for x in frames[i+1]])
-    # feats_prev = np.array([x for x in frames[i]])
-    # feats_curr = np.squeeze(feats_curr)
-    # feats_prev = np.squeeze(feats_prev)
-    # feat_dists = []
-    # for kc, vc in feats_curr.items():
-    #     row = []
-    #     for kp, vp in feats_prev.items():
-    #         row.append(distance.cosine(vc, vp))
-    #     feat_dists.append(row)
+    feats_curr = frames[i+1] 
+    feats_prev = frames[i]
+    feats_dists = []
+    feats_indices = []
+    for kc, vc in feats_curr.items():
+        dist_row = []
+        index_row = []
+        for kp, vp in feats_prev.items():
+            dist_row.append(distance.cosine(vp, vc))
+            index_row.append((kp, kc))
+        feats_dists.append(dist_row)
+        feats_indices.append(index_row)
+   
+    print ('f dist', feats_dists)
+    print ('f ind', feats_indices)
+    cost, x, y = lap.lapjv(np.array(feats_dists), extend_cost=True)
+    print ('x', x)
+    print ('y', y)
+    for j, elm in enumerate(x): # going through the rows
+        if not elm == -1: # i.e. if there was a match
+            pair = feats_indices[j][elm]
+            if pair[0] == pair[1]:
+                axs[1,0].scatter(elm, j, c='g', marker='o')
+            else:
+                axs[1,0].scatter(elm, j, c='r', marker='x') # TODO test and apply to feats too!
+    axs[1,0].matshow(feats_dists, cmap='inferno_r')
+    axs[1,0].set_title('Feature vector cosine distance confusion matrix')
+    axs[1,0].set_xlabel('Existing tracks')
+    axs[1,0].set_xticks(range(len(feats_prev.keys()))) # Fix up this indexing too
+    axs[1,0].set_xticklabels([k for k in feats_prev.keys()]) # Fix up this indexing too
+    axs[1,0].set_ylabel('Incoming detections')
+    axs[1,0].set_yticks(range(len(feats_curr.keys()))) # Fix up this indexing too
+    axs[1,0].set_yticklabels([k for k in feats_curr.keys()]) # Fix up this indexing too
 
-    # cost, trk_id, det_id = lap.lapjv(np.array(feat_dists), extend_cost=True)
-    # A = np.zeros_like(feat_dists)
-    # for j in range(A.shape[0]):
-    #     if j == trk_id[j]:
-    #         axs[1,0].scatter(j, trk_id[j], c='g', marker='o')
-    #     else:
-    #         axs[1,0].scatter(j, trk_id[j], c='r', marker='x')
 
-    # axs[1,0].matshow(feat_dists, cmap='inferno_r')
-    # axs[1,0].set_title('Feature vector cosine distance confusion matrix')
-    # axs[1,0].set_ylabel('Incoming detections')
-    # axs[1,0].set_xlabel('Existing tracks')    
-    # axs[1,0].set_xticklabels(det_id)
-    # axs[1,0].set_yticklabels(trk_id)
+
     eucl_curr = centers[i+1] #np.array([x for x in centers[i+1]])
     eucl_prev = centers[i] # np.array([x for x in centers[i]])
-    # eucl_curr = np.squeeze(eucl_curr)
-    # eucl_prev = np.squeeze(eucl_prev)
     eucl_dists = []
     eucl_indices = []
     for kc, vc in eucl_curr.items():
@@ -234,24 +243,20 @@ for i in range(84, 86): #len(frames) - 1):
     cost, x, y = lap.lapjv(np.array(eucl_dists), extend_cost=True)
     print ('x', x)
     print ('y', y)
-    # trk_id = [eucl_prev_ind[x] for x in t]
-    # det_id = [eucl_curr_ind[x] for x in d]
     for j, elm in enumerate(x): # going through the rows
         if not elm == -1: # i.e. if there was a match
             pair = eucl_indices[j][elm]
             if pair[0] == pair[1]:
-                axs[1,1].scatter(pair[0], pair[1], c='g', marker='o')
+                axs[1,1].scatter(elm, j, c='g', marker='o')
             else:
-                axs[1,1].scatter(pair[0], pair[1], c='r', marker='x') # TODO test and apply to feats too!
+                axs[1,1].scatter(elm, j, c='r', marker='x') # TODO test and apply to feats too!
     axs[1,1].matshow(eucl_dists, cmap='inferno_r')
     axs[1,1].set_title('Box center Euclidean distance confusion matrix')
     axs[1,1].set_xlabel('Existing tracks')
     axs[1,1].set_xticks(range(len(eucl_prev.keys()))) # Fix up this indexing too
-    print('[k for k in eucl_prev.keys()]', [k for k in eucl_prev.keys()])
     axs[1,1].set_xticklabels([k for k in eucl_prev.keys()]) # Fix up this indexing too
     axs[1,1].set_ylabel('Incoming detections')
     axs[1,1].set_yticks(range(len(eucl_curr.keys()))) # Fix up this indexing too
-    print('[k for k in eucl_curr.keys()]', [k for k in eucl_curr.keys()])
     axs[1,1].set_yticklabels([k for k in eucl_curr.keys()]) # Fix up this indexing too
 
     fig.suptitle(seq)
