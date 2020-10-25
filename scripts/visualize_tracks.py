@@ -22,13 +22,15 @@ import lap
 br = CvBridge()
 
 # Corruption
-nominal = True
+nominal = False
 dropout_rate = 0.2 # fraction of dropped detections
 jitter_xy = 0.02
 jitter_wh = 0.15
 np.random.seed(0)
 
-max_distance = {'cosine': 0.7, 'euclidean': 30.0}
+lam = 0.8 # proportion for cosine dist
+
+max_distance = {'cosine': 0.7, 'euclidean': 0.1, 'iou': -0.4}
 
 # Paths
 seq = 'seq05'
@@ -262,13 +264,14 @@ for i in range(len(frames) - 1):
     # print ('y', y)
     for j, elm in enumerate(x): # going through the rows
         if not elm == -1: # i.e. if there was a match
-            pair = feats_indices[j][elm]
-            if pair[0] == pair[1]:
-                axs[1,0].scatter(elm, j, c='g', marker='o')
-            else:
-                axs[1,0].scatter(elm, j, c='r', marker='x') # TODO test and apply to feats too!
+            if feats_dists[j][elm] < max_distance['cosine']:
+                pair = feats_indices[j][elm]
+                if pair[0] == pair[1]:
+                    axs[1,0].scatter(elm, j, c='g', marker='o')
+                else:
+                    axs[1,0].scatter(elm, j, c='r', marker='x') # TODO test and apply to feats too!
     axs[1,0].matshow(feats_dists, cmap='inferno_r')
-    axs[1,0].set_title('Feature vector cosine distance confusion matrix')
+    axs[1,0].set_title('Feature vector cosine distance \nconfusion matrix')
     axs[1,0].set_xlabel('Existing tracks')
     axs[1,0].set_xticks(range(len(feats_prev.keys()))) # Fix up this indexing too
     axs[1,0].set_xticklabels([k for k in feats_prev.keys()]) # Fix up this indexing too
@@ -300,13 +303,14 @@ for i in range(len(frames) - 1):
     # print ('y', y)
     for j, elm in enumerate(x): # going through the rows
         if not elm == -1: # i.e. if there was a match
-            pair = eucl_indices[j][elm]
-            if pair[0] == pair[1]:
-                axs[1,1].scatter(elm, j, c='g', marker='o')
-            else:
-                axs[1,1].scatter(elm, j, c='r', marker='x') # TODO test and apply to feats too!
+            if eucl_dists[j][elm] < max_distance['euclidean']:
+                pair = eucl_indices[j][elm]
+                if pair[0] == pair[1]:
+                    axs[1,1].scatter(elm, j, c='g', marker='o')
+                else:
+                    axs[1,1].scatter(elm, j, c='r', marker='x') # TODO test and apply to feats too!
     axs[1,1].matshow(eucl_dists, cmap='inferno_r')
-    axs[1,1].set_title('Box center Euclidean distance confusion matrix')
+    axs[1,1].set_title('Box center Euclidean distance \nconfusion matrix')
     axs[1,1].set_xlabel('Existing tracks')
     axs[1,1].set_xticks(range(len(eucl_prev.keys()))) # Fix up this indexing too
     axs[1,1].set_xticklabels([k for k in eucl_prev.keys()]) # Fix up this indexing too
@@ -328,20 +332,21 @@ for i in range(len(frames) - 1):
         iou_dists.append(dist_row)
         iou_indices.append(index_row)
    
-    iou_dists = np.asarray(iou_dists)
+    iou_dists = -np.asarray(iou_dists)
     # iou_dists = iou_dists / np.linalg.norm(iou_dists)
     # print ('e dist', iou_dists)
     # print ('e ind', iou_indices)
-    cost, x, y = lap.lapjv(np.array(-iou_dists), extend_cost=True) # < 0 because IOU = 1.0 is perfect, 0.0 is worst
+    cost, x, y = lap.lapjv(iou_dists, extend_cost=True) # < 0 because IOU = 1.0 is perfect, 0.0 is worst
 
     for j, elm in enumerate(x): # going through the rows
         if not elm == -1: # i.e. if there was a match
-            pair = iou_indices[j][elm]
-            if pair[0] == pair[1]:
-                axs[1,2].scatter(elm, j, c='g', marker='o')
-            else:
-                axs[1,2].scatter(elm, j, c='r', marker='x') # TODO test and apply to feats too!
-    axs[1,2].matshow(-iou_dists, cmap='inferno_r')
+            if iou_dists[j][elm] < max_distance['iou']:
+                pair = iou_indices[j][elm]
+                if pair[0] == pair[1]:
+                    axs[1,2].scatter(elm, j, c='g', marker='o')
+                else:
+                    axs[1,2].scatter(elm, j, c='r', marker='x') # TODO test and apply to feats too!
+    axs[1,2].matshow(iou_dists, cmap='inferno_r')
     axs[1,2].set_title('IOU confusion matrix')
     axs[1,2].set_xlabel('Existing tracks')
     axs[1,2].set_xticks(range(len(iou_prev.keys()))) # Fix up this indexing too
@@ -350,9 +355,15 @@ for i in range(len(frames) - 1):
     axs[1,2].set_yticks(range(len(iou_curr.keys()))) # Fix up this indexing too
     axs[1,2].set_yticklabels([k for k in iou_curr.keys()]) # Fix up this indexing too
 
+    axs[0,0].axis('off')
+    axs[0,1].axis('off')
+    axs[0,2].axis('off')
 
     fig.suptitle(seq)
-    fn = filenames[i] + '_d' + f'{dropout_rate:.03}' + '_jxy' + f'{jitter_xy:.03}' + '_jwh' + f'{jitter_wh:.03}' 
+    if nominal:
+        fn = filenames[i]
+    else:
+        fn = filenames[i] + '_d' + f'{dropout_rate:.03}' + '_jxy' + f'{jitter_xy:.03}' + '_jwh' + f'{jitter_wh:.03}' 
     print('Writing to', os.path.join(os.path.join(out_path, seq), fn + '.png'))
 
     # plt.savefig(os.path.join(os.path.join(out_path, seq), fn + '.png'))
