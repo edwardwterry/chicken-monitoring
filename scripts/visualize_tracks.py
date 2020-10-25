@@ -22,10 +22,13 @@ import lap
 br = CvBridge()
 
 # Corruption
+nominal = True
 dropout_rate = 0.2 # fraction of dropped detections
 jitter_xy = 0.02
 jitter_wh = 0.15
 np.random.seed(0)
+
+max_distance = {'cosine': 0.7, 'euclidean': 30.0}
 
 # Paths
 seq = 'seq05'
@@ -35,7 +38,6 @@ annotation_path = '/home/ed/Data/frames/labels/color'
 trk_suffix = '_trk'
 
 color_cycle = plt.rcParams['axes.prop_cycle'].by_key()['color']
-det_dropout_rate = 0.3
 
 class ConvNet(nn.Module):
     def __init__(self):
@@ -127,6 +129,24 @@ def trim(orig_center, orig_distance):
     else:
         return orig_center, orig_distance
 
+def calculate_iou(bb1, bb2):
+    # bb1 and bb2 are in (x, y, w, h) form
+    # from pyimagesearch
+    tlbr1 = xywh2tlbr(bb1[0], bb1[1], bb1[2], bb1[3])
+    tlbr2 = xywh2tlbr(bb2[0], bb2[1], bb2[2], bb2[3])
+    # Intersection rectangle
+    xA = max(tlbr1[0], tlbr2[0])
+    yA = max(tlbr1[1], tlbr2[1])
+    xB = min(tlbr1[2], tlbr2[2])
+    yB = min(tlbr1[3], tlbr2[3])
+
+    inter = max(0.0, xB - xA + 1.0) * max(0.0, yB - yA + 1.0)
+    area1 = (tlbr1[2] - tlbr1[0] + 1.0) * (tlbr1[3] - tlbr1[1] + 1.0)
+    area2 = (tlbr2[2] - tlbr2[0] + 1.0) * (tlbr2[3] - tlbr2[1] + 1.0)
+
+    iou = inter / float(area1 + area2 - inter)
+    return iou
+
 def overlay_bb_trk(im, x1, y1, x2, y2, id):
     color = hex2rgb(color_cycle[id % len(color_cycle)])
     im = cv2.putText(im, str(id), (x1 + 5, y2 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
@@ -134,6 +154,8 @@ def overlay_bb_trk(im, x1, y1, x2, y2, id):
     return im
 
 def perturb_bb(x, y, w, h):
+    if nominal:
+        return x, y, w, h
     x += np.random.uniform(-jitter_xy, jitter_xy)
     y += np.random.uniform(-jitter_xy, jitter_xy)
     w *= np.random.uniform(1.0 - jitter_wh, 1.0 + jitter_wh)
@@ -149,7 +171,7 @@ def perturb_bb(x, y, w, h):
     return x, y, w, h
 
 def included():
-    return np.random.random() >= dropout_rate
+    return nominal or np.random.random() >= dropout_rate
 
 # Open image
 # print(os.walk(os.path.join(in_image_path, seq)))
@@ -157,6 +179,7 @@ frames = []
 images = []
 crops = []
 centers = []
+boxes = []
 filenames = []
 count = 0
 
@@ -175,6 +198,7 @@ for root, dirs, files in os.walk(os.path.join(in_image_path, seq), topdown=False
                 # print(os.path.join(root, file_txt))
                 with open(os.path.join(os.path.join(annotation_path, seq + trk_suffix), file_txt), 'r') as myfile:
                     cs = {}
+                    bs = {}
                     for line in myfile.readlines():
                         if included():
                             x, y, w, h = [float(x) for x in line.split(' ')[1:5]]
@@ -187,6 +211,7 @@ for root, dirs, files in os.walk(os.path.join(in_image_path, seq), topdown=False
                             x_new, w_new = trim(x, w)
                             y_new, h_new = trim(y, h)
                             cs[index] = [x_new, y_new]
+                            bs[index] = [x_new, y_new, w_new, h_new]
                             tlbr = xywh2tlbr(x_new, y_new, w_new, h_new)
                             im = overlay_bb_trk(im, int(im_w*tlbr[0]), int(im_h*tlbr[1]), int(im_w*tlbr[2]), int(im_h*tlbr[3]), index)
                             crop = im[int(im_h * tlbr[1]):int(im_h * tlbr[3]), int(im_w * tlbr[0]):int(im_w * tlbr[2])]
@@ -200,6 +225,7 @@ for root, dirs, files in os.walk(os.path.join(in_image_path, seq), topdown=False
                                 features[index] = f
             frames.append(features)
             centers.append(cs)
+            boxes.append(bs)
             images.append(im)
             filenames.append(file_txt.split('.')[0])
             count += 1
@@ -208,13 +234,14 @@ for root, dirs, files in os.walk(os.path.join(in_image_path, seq), topdown=False
 
 
 for i in range(len(frames) - 1):
-    fig, axs = plt.subplots(2, 2, figsize=(12,12))
+    fig, axs = plt.subplots(2, 3, figsize=(12,12))
     axs[0,0].imshow(images[i])
     axs[0,0].set_title('Previous image\n' + filenames[i])
 
-    axs[0,1].imshow(images[i+1])
-    axs[0,1].set_title('Current image\n' + filenames[i+1])
+    axs[0,2].imshow(images[i+1])
+    axs[0,2].set_title('Current image\n' + filenames[i+1])
 
+    # Cosine distance
     feats_curr = frames[i+1] 
     feats_prev = frames[i]
     feats_dists = []
@@ -250,7 +277,7 @@ for i in range(len(frames) - 1):
     axs[1,0].set_yticklabels([k for k in feats_curr.keys()]) # Fix up this indexing too
 
 
-
+    # Euclidean distance
     eucl_curr = centers[i+1] #np.array([x for x in centers[i+1]])
     eucl_prev = centers[i] # np.array([x for x in centers[i]])
     eucl_dists = []
@@ -287,10 +314,47 @@ for i in range(len(frames) - 1):
     axs[1,1].set_yticks(range(len(eucl_curr.keys()))) # Fix up this indexing too
     axs[1,1].set_yticklabels([k for k in eucl_curr.keys()]) # Fix up this indexing too
 
+    # IOU distance
+    iou_curr = boxes[i+1]
+    iou_prev = boxes[i] 
+    iou_dists = []
+    iou_indices = []
+    for kc, vc in iou_curr.items():
+        dist_row = []
+        index_row = []
+        for kp, vp in iou_prev.items():
+            dist_row.append(calculate_iou(vp, vc))
+            index_row.append((kp, kc))
+        iou_dists.append(dist_row)
+        iou_indices.append(index_row)
+   
+    iou_dists = np.asarray(iou_dists)
+    # iou_dists = iou_dists / np.linalg.norm(iou_dists)
+    # print ('e dist', iou_dists)
+    # print ('e ind', iou_indices)
+    cost, x, y = lap.lapjv(np.array(-iou_dists), extend_cost=True) # < 0 because IOU = 1.0 is perfect, 0.0 is worst
+
+    for j, elm in enumerate(x): # going through the rows
+        if not elm == -1: # i.e. if there was a match
+            pair = iou_indices[j][elm]
+            if pair[0] == pair[1]:
+                axs[1,2].scatter(elm, j, c='g', marker='o')
+            else:
+                axs[1,2].scatter(elm, j, c='r', marker='x') # TODO test and apply to feats too!
+    axs[1,2].matshow(-iou_dists, cmap='inferno_r')
+    axs[1,2].set_title('IOU confusion matrix')
+    axs[1,2].set_xlabel('Existing tracks')
+    axs[1,2].set_xticks(range(len(iou_prev.keys()))) # Fix up this indexing too
+    axs[1,2].set_xticklabels([k for k in iou_prev.keys()]) # Fix up this indexing too
+    axs[1,2].set_ylabel('Incoming detections')
+    axs[1,2].set_yticks(range(len(iou_curr.keys()))) # Fix up this indexing too
+    axs[1,2].set_yticklabels([k for k in iou_curr.keys()]) # Fix up this indexing too
+
+
     fig.suptitle(seq)
     fn = filenames[i] + '_d' + f'{dropout_rate:.03}' + '_jxy' + f'{jitter_xy:.03}' + '_jwh' + f'{jitter_wh:.03}' 
     print('Writing to', os.path.join(os.path.join(out_path, seq), fn + '.png'))
 
-    plt.savefig(os.path.join(os.path.join(out_path, seq), fn + '.png'))
+    # plt.savefig(os.path.join(os.path.join(out_path, seq), fn + '.png'))
+    plt.show()
     plt.close()
-    # plt.show()
