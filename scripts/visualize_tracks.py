@@ -18,6 +18,8 @@ from sklearn.preprocessing import normalize
 from scipy.spatial import distance
 import lap
 
+np.set_printoptions(precision=3)
+
 # Set stuff up
 br = CvBridge()
 
@@ -30,7 +32,7 @@ np.random.seed(0)
 
 lam = 0.8 # proportion for cosine dist
 
-max_distance = {'cosine': 0.7, 'euclidean': 0.1, 'iou': -0.4}
+max_distance = {'cosine': 0.1, 'euclidean': 0.1, 'iou': -0.4}
 
 # Paths
 seq = 'seq05'
@@ -131,20 +133,32 @@ def trim(orig_center, orig_distance):
     else:
         return orig_center, orig_distance
 
+def no_intersect(tlbr1, tlbr2):
+    if tlbr2[0] > tlbr1[2] or tlbr2[3] > tlbr1[1]:
+        return True
+
+
 def calculate_iou(bb1, bb2):
     # bb1 and bb2 are in (x, y, w, h) form
     # from pyimagesearch
     tlbr1 = xywh2tlbr(bb1[0], bb1[1], bb1[2], bb1[3])
     tlbr2 = xywh2tlbr(bb2[0], bb2[1], bb2[2], bb2[3])
+
+    print('tlbr1', tlbr1)
+    print('tlbr2', tlbr2)
+
+    # if no_intersect(tlbr1, tlbr2):
+    #     return 0.0
+
     # Intersection rectangle
     xA = max(tlbr1[0], tlbr2[0])
     yA = max(tlbr1[1], tlbr2[1])
     xB = min(tlbr1[2], tlbr2[2])
     yB = min(tlbr1[3], tlbr2[3])
 
-    inter = max(0.0, xB - xA + 1.0) * max(0.0, yB - yA + 1.0)
-    area1 = (tlbr1[2] - tlbr1[0] + 1.0) * (tlbr1[3] - tlbr1[1] + 1.0)
-    area2 = (tlbr2[2] - tlbr2[0] + 1.0) * (tlbr2[3] - tlbr2[1] + 1.0)
+    inter = max(0.0, xB - xA) * max(0.0, yB - yA)
+    area1 = (tlbr1[2] - tlbr1[0]) * (tlbr1[3] - tlbr1[1])
+    area2 = (tlbr2[2] - tlbr2[0]) * (tlbr2[3] - tlbr2[1])
 
     iou = inter / float(area1 + area2 - inter)
     return iou
@@ -236,12 +250,12 @@ for root, dirs, files in os.walk(os.path.join(in_image_path, seq), topdown=False
 
 
 for i in range(len(frames) - 1):
-    fig, axs = plt.subplots(2, 3, figsize=(12,12))
+    fig, axs = plt.subplots(2, 2, figsize=(12,12))
     axs[0,0].imshow(images[i])
     axs[0,0].set_title('Previous image\n' + filenames[i])
 
-    axs[0,2].imshow(images[i+1])
-    axs[0,2].set_title('Current image\n' + filenames[i+1])
+    axs[0,1].imshow(images[i+1])
+    axs[0,1].set_title('Current image\n' + filenames[i+1])
 
     # Cosine distance
     feats_curr = frames[i+1] 
@@ -257,7 +271,7 @@ for i in range(len(frames) - 1):
         feats_dists.append(dist_row)
         feats_indices.append(index_row)
    
-    # print ('f dist', feats_dists)
+    print ('f dist\n', np.asarray(feats_dists))
     # print ('f ind', feats_indices)
     cost, x, y = lap.lapjv(np.array(feats_dists), extend_cost=True)
     # print ('x', x)
@@ -280,43 +294,43 @@ for i in range(len(frames) - 1):
     axs[1,0].set_yticklabels([k for k in feats_curr.keys()]) # Fix up this indexing too
 
 
-    # Euclidean distance
-    eucl_curr = centers[i+1] #np.array([x for x in centers[i+1]])
-    eucl_prev = centers[i] # np.array([x for x in centers[i]])
-    eucl_dists = []
-    eucl_indices = []
-    for kc, vc in eucl_curr.items():
-        dist_row = []
-        index_row = []
-        for kp, vp in eucl_prev.items():
-            dist_row.append(distance.euclidean(vp, vc))
-            index_row.append((kp, kc))
-        eucl_dists.append(dist_row)
-        eucl_indices.append(index_row)
+    # # Euclidean distance
+    # eucl_curr = centers[i+1] #np.array([x for x in centers[i+1]])
+    # eucl_prev = centers[i] # np.array([x for x in centers[i]])
+    # eucl_dists = []
+    # eucl_indices = []
+    # for kc, vc in eucl_curr.items():
+    #     dist_row = []
+    #     index_row = []
+    #     for kp, vp in eucl_prev.items():
+    #         dist_row.append(distance.euclidean(vp, vc))
+    #         index_row.append((kp, kc))
+    #     eucl_dists.append(dist_row)
+    #     eucl_indices.append(index_row)
    
-    eucl_dists = np.asarray(eucl_dists)
-    eucl_dists = eucl_dists / np.linalg.norm(eucl_dists)
-    # print ('e dist', eucl_dists)
-    # print ('e ind', eucl_indices)
-    cost, x, y = lap.lapjv(np.array(eucl_dists), extend_cost=True)
-    # print ('x', x)
-    # print ('y', y)
-    for j, elm in enumerate(x): # going through the rows
-        if not elm == -1: # i.e. if there was a match
-            if eucl_dists[j][elm] < max_distance['euclidean']:
-                pair = eucl_indices[j][elm]
-                if pair[0] == pair[1]:
-                    axs[1,1].scatter(elm, j, c='g', marker='o')
-                else:
-                    axs[1,1].scatter(elm, j, c='r', marker='x') # TODO test and apply to feats too!
-    axs[1,1].matshow(eucl_dists, cmap='inferno_r')
-    axs[1,1].set_title('Box center Euclidean distance \nconfusion matrix')
-    axs[1,1].set_xlabel('Existing tracks')
-    axs[1,1].set_xticks(range(len(eucl_prev.keys()))) # Fix up this indexing too
-    axs[1,1].set_xticklabels([k for k in eucl_prev.keys()]) # Fix up this indexing too
-    axs[1,1].set_ylabel('Incoming detections')
-    axs[1,1].set_yticks(range(len(eucl_curr.keys()))) # Fix up this indexing too
-    axs[1,1].set_yticklabels([k for k in eucl_curr.keys()]) # Fix up this indexing too
+    # eucl_dists = np.asarray(eucl_dists)
+    # eucl_dists = eucl_dists / np.linalg.norm(eucl_dists)
+    # # print ('e dist', eucl_dists)
+    # # print ('e ind', eucl_indices)
+    # cost, x, y = lap.lapjv(np.array(eucl_dists), extend_cost=True)
+    # # print ('x', x)
+    # # print ('y', y)
+    # for j, elm in enumerate(x): # going through the rows
+    #     if not elm == -1: # i.e. if there was a match
+    #         if eucl_dists[j][elm] < max_distance['euclidean']:
+    #             pair = eucl_indices[j][elm]
+    #             if pair[0] == pair[1]:
+    #                 axs[1,1].scatter(elm, j, c='g', marker='o')
+    #             else:
+    #                 axs[1,1].scatter(elm, j, c='r', marker='x') # TODO test and apply to feats too!
+    # axs[1,1].matshow(eucl_dists, cmap='inferno_r')
+    # axs[1,1].set_title('Box center Euclidean distance \nconfusion matrix')
+    # axs[1,1].set_xlabel('Existing tracks')
+    # axs[1,1].set_xticks(range(len(eucl_prev.keys()))) # Fix up this indexing too
+    # axs[1,1].set_xticklabels([k for k in eucl_prev.keys()]) # Fix up this indexing too
+    # axs[1,1].set_ylabel('Incoming detections')
+    # axs[1,1].set_yticks(range(len(eucl_curr.keys()))) # Fix up this indexing too
+    # axs[1,1].set_yticklabels([k for k in eucl_curr.keys()]) # Fix up this indexing too
 
     # IOU distance
     iou_curr = boxes[i+1]
@@ -334,7 +348,7 @@ for i in range(len(frames) - 1):
    
     iou_dists = -np.asarray(iou_dists)
     # iou_dists = iou_dists / np.linalg.norm(iou_dists)
-    # print ('e dist', iou_dists)
+    print ('iou dist\n', iou_dists)
     # print ('e ind', iou_indices)
     cost, x, y = lap.lapjv(iou_dists, extend_cost=True) # < 0 because IOU = 1.0 is perfect, 0.0 is worst
 
@@ -343,21 +357,21 @@ for i in range(len(frames) - 1):
             if iou_dists[j][elm] < max_distance['iou']:
                 pair = iou_indices[j][elm]
                 if pair[0] == pair[1]:
-                    axs[1,2].scatter(elm, j, c='g', marker='o')
+                    axs[1,1].scatter(elm, j, c='g', marker='o')
                 else:
-                    axs[1,2].scatter(elm, j, c='r', marker='x') # TODO test and apply to feats too!
-    axs[1,2].matshow(iou_dists, cmap='inferno_r')
-    axs[1,2].set_title('IOU confusion matrix')
-    axs[1,2].set_xlabel('Existing tracks')
-    axs[1,2].set_xticks(range(len(iou_prev.keys()))) # Fix up this indexing too
-    axs[1,2].set_xticklabels([k for k in iou_prev.keys()]) # Fix up this indexing too
-    axs[1,2].set_ylabel('Incoming detections')
-    axs[1,2].set_yticks(range(len(iou_curr.keys()))) # Fix up this indexing too
-    axs[1,2].set_yticklabels([k for k in iou_curr.keys()]) # Fix up this indexing too
+                    axs[1,1].scatter(elm, j, c='r', marker='x') # TODO test and apply to feats too!
+    axs[1,1].matshow(iou_dists, cmap='inferno_r')
+    axs[1,1].set_title('IOU confusion matrix')
+    axs[1,1].set_xlabel('Existing tracks')
+    axs[1,1].set_xticks(range(len(iou_prev.keys()))) # Fix up this indexing too
+    axs[1,1].set_xticklabels([k for k in iou_prev.keys()]) # Fix up this indexing too
+    axs[1,1].set_ylabel('Incoming detections')
+    axs[1,1].set_yticks(range(len(iou_curr.keys()))) # Fix up this indexing too
+    axs[1,1].set_yticklabels([k for k in iou_curr.keys()]) # Fix up this indexing too
 
     axs[0,0].axis('off')
     axs[0,1].axis('off')
-    axs[0,2].axis('off')
+    # axs[0,2].axis('off')
 
     fig.suptitle(seq)
     if nominal:
