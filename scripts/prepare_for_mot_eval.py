@@ -18,26 +18,6 @@ target_det_dir = 'det'
 target_gt_dir = 'gt'
 trk_suffix = '_trk'
 
-# Alterations to apply
-# # {perturb bb, ignore det}, TODO FP
-# alterations = {'bb_noise': False, 'ignore_det': False}
-
-
-# def corrupt(yolo, method):
-#     if method == 'bb_noise':
-#         raise NotImplementedError
-#     elif method == 'ignore_det':
-#         raise NotImplementedError
-#     conf = 1.0
-#     return yolo, conf
-
-
-# def alter_yolo_bb(yolo, conf=1.0):
-#     for a, do in alterations.items():
-#         if do:
-#             yolo, conf = corrupt(yolo, a)
-#     return yolo, conf
-
 fn = FeatureNet()
 
 for root, dirs, files in os.walk(os.path.join(existing_im_dir, seq), topdown=False):
@@ -48,7 +28,7 @@ for root, dirs, files in os.walk(os.path.join(existing_im_dir, seq), topdown=Fal
     for f in files:
         dst = f'{frame_id:06}' + '.jpg'
         copyfile(os.path.join(root, f), os.path.join(os.path.join(
-            sequence_dir, seq, dataset_type, target_im_dir), dst))
+            sequence_dir, seq + '-' + dataset_type, target_im_dir), dst))
 
         # Save the image dimensions
         im = cv2.imread(os.path.join(root, f))
@@ -71,9 +51,9 @@ for root, dirs, files in os.walk(os.path.join(existing_im_dir, seq), topdown=Fal
         frame_id += 1
 
     # Write gt.txt
-    np.savetxt(os.path.join(os.path.join(sequence_dir, seq,
-                                         dataset_type, target_gt_dir), 'gt.txt'), np.asarray(gts))
+    np.savetxt(os.path.join(os.path.join(sequence_dir, seq + '-' + dataset_type,
+                                         target_gt_dir), 'gt.txt'), np.asarray(gts), fmt='%.2f', delimiter=',')
 
     # Write det.npy
-    np.save(os.path.join(os.path.join(sequence_dir, seq, dataset_type,
-                                      target_det_dir), 'det.npy'), np.asarray(dets), allow_pickle=False)
+    np.save(os.path.join(os.path.join(sequence_dir, seq + '-' + dataset_type,
+                                      target_det_dir), seq + '-' + dataset_type + '.npy'), np.asarray(dets), allow_pickle=False)
