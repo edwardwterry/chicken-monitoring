@@ -14,7 +14,7 @@ from scipy.spatial import distance
 
 
 class FeatureNet():
-    def __init__(self):
+    def __init__(self, dataset='cifar10'):
         # Utility transform to normalize the PIL image dataset from [0,1] to [-1,1]
         self.tf = transforms.Compose([transforms.ToTensor(),
                                       transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
@@ -22,10 +22,16 @@ class FeatureNet():
         self.device = torch.device(
             'cuda' if torch.cuda.is_available() else 'cpu')
         print('Loading original model')
-        model = ConvNet().to(self.device)
+        model = ConvNet(dataset).to(self.device)
 
         # Load model skeleton and remove FC layers
-        model.load_state_dict(torch.load('/home/ed/Data/CIFAR10/ckpt/15.pth'))
+        if dataset == 'cifar10':
+            weights_path = '/home/ed/Data/CIFAR10/ckpt/15.pth'
+        elif dataset == 'chicken12':
+            weights_path = '/home/ed/Data/frames/lenet-app/models/ckpt/11.pth'
+        else:
+            raise NotImplementedError
+        model.load_state_dict(torch.load(weights_path))
 
         # https://discuss.pytorch.org/t/why-removing-last-layer-is-causing-size-mismatch/37855/2
         print('Preparing model with feature vector output')
@@ -61,7 +67,7 @@ class FeatureNet():
 
 
 class ConvNet(nn.Module):
-    def __init__(self):
+    def __init__(self, dataset='cifar10'):
         super(ConvNet, self).__init__()
         self.conv1 = nn.Conv2d(3, 6, 5)
         self.pool1 = nn.MaxPool2d(2, 2)
@@ -69,7 +75,12 @@ class ConvNet(nn.Module):
         self.pool2 = nn.MaxPool2d(2, 2)
         self.fc1 = nn.Linear(16 * 5 * 5, 120)
         self.fc2 = nn.Linear(120, 84)
-        self.fc3 = nn.Linear(84, 10)
+        if dataset == 'cifar10':
+            self.fc3 = nn.Linear(84, 10)
+        elif dataset == 'chicken12':
+            self.fc3 = nn.Linear(84, 12)
+        else:
+            raise NotImplementedError
 
     def forward(self, x):
         x = self.pool1(F.relu(self.conv1(x)))
@@ -180,7 +191,7 @@ class BoundingBox():
                 frame_id, -1, tl_x, tl_y, w, h, self.conf, self.cls, vis=-1, feat=feat)
         elif det_gt == 'gt':
             mot = BoundingBox.populate_mot_array(frame_id, self.track_id, tl_x,
-                                                 tl_y, w, h, self.conf, self.cls)
+                                                 tl_y, w, h, self.conf, self.cls).astype(int)
         else:
             raise NotImplementedError
         return mot
@@ -196,6 +207,8 @@ class BoundingBox():
             ret = np.append(ret, feat)
         return ret
 
+    def included(self, keep):
+        return keep or np.random.random() >= self.dropout_rate
 
 def calculate_iou(bb1, bb2):
     # bb1 and bb2 are each a BoundingBox() type
